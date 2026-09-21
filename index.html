@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CURRENT — More ways to get on the water</title>
+  <meta name="description" content="Find people to sail with, coaching to learn from, and boats to get you on the water, all connected through one sailing profile.">
+  <meta name="theme-color" content="#0e2238">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="home">
+
+  <header class="site-header" data-component="header"></header>
+
+  <main id="main">
+
+    <!-- Hero: images/hero-bay-sailing.jpg -->
+    <section class="hero">
+      <div class="photo__frame hero__photo" style="--pos:62% 60%">
+        <div class="photo__media">
+          <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/hero-bay-sailing.jpg</span></div>
+          <img src="images/hero-bay-sailing.jpg" alt="A SailGP catamaran foiling on San Francisco Bay with the Marin headlands behind" decoding="async" onerror="this.hidden=true">
+        </div>
+        <div class="photo__scrim"></div>
+      </div>
+
+      <div class="container hero__inner">
+        <h1 class="hero__title display-1 rise">More ways to get on the <em>water.</em></h1>
+        <div class="hero__aside rise" style="--i:2">
+          <p class="lede">Find people to sail with, coaching to learn from, and boats to get you on the water, all connected through one sailing profile.</p>
+          <div class="hero__actions">
+            <a class="btn btn--light" href="find-a-sail.html">Find a sail</a>
+            <a class="btn btn--ghost-light" href="create-profile.html">Create your sailing profile</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- People / Skills / Boats -->
+    <section class="section section--flush-top" aria-label="People, skills and boats">
+      <div class="container">
+        <div class="tiles">
+
+          <a class="tile tile--people" href="find-a-sail.html">
+            <div class="photo__frame" style="--ph:#1d3a57; --pos:50% 72%">
+              <div class="photo__media">
+                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/people-crew-racing.jpg</span></div>
+                <img src="images/people-crew-racing.jpg" alt="The Spain SailGP crew aboard their boat on San Francisco Bay" loading="lazy" decoding="async" onerror="this.hidden=true">
+              </div>
+              <div class="photo__scrim"></div>
+            </div>
+            <div class="tile__text">
+              <h2 class="display-3">People</h2>
+              <p class="tile__line">Find crew, skippers and sailing opportunities.</p>
+              <span class="tile__more">Browse open sails <span>→</span></span>
+            </div>
+          </a>
+
+          <div class="tile tile--skills">
+            <div class="photo__frame" style="--ph:#3f6078">
+              <div class="photo__media">
+                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/skills-instructor-coaching.jpg</span></div>
+                <img src="images/skills-instructor-coaching.jpg" alt="A Sunfish dinghy sailing with an instructor and students" loading="lazy" decoding="async" onerror="this.hidden=true">
+              </div>
+              <div class="photo__scrim"></div>
+            </div>
+            <span class="tile__later">Coming later</span>
+            <div class="tile__text">
+              <h2 class="display-3">Skills</h2>
+              <p class="tile__line">Find instructors and coaching.</p>
+            </div>
+          </div>
+
+          <div class="tile tile--boats">
+            <div class="photo__frame" style="--ph:#5b7d92">
+              <div class="photo__media">
+                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/boats-marina-access.jpg</span></div>
+                <img src="images/boats-marina-access.jpg" alt="Sailboats moored in a California marina under a blue sky" loading="lazy" decoding="async" onerror="this.hidden=true">
+              </div>
+              <div class="photo__scrim"></div>
+            </div>
+            <span class="tile__later">Coming later</span>
+            <div class="tile__text">
+              <h2 class="display-3">Boats</h2>
+              <p class="tile__line">Find boat access and rentals.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Find a sail -->
+    <section class="section" id="open-sails">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow">Find a sail</p>
+          <h2 class="display-2">This week on the Bay.</h2>
+          <p class="section__aside"><a class="link-arrow" href="find-a-sail.html">See all open sails <span>→</span></a></p>
+        </header>
+        <div class="sails" data-sails data-limit="4"></div>
+      </div>
+    </section>
+
+    <!-- Sailing profile -->
+    <section class="section band" id="profile">
+      <div class="container band__grid">
+        <div class="band__text">
+          <p class="eyebrow">Your sailing profile</p>
+          <h2 class="display-2">Your sailing history, in one link.</h2>
+          <p class="lede">Send it to a skipper, post it on a crew board, or drop it in the group chat.</p>
+          <div class="band__actions">
+            <a class="btn btn--light" href="create-profile.html">Create your profile</a>
+            <a class="btn btn--ghost-light" href="profile.html">View profile</a>
+          </div>
+        </div>
+        <div class="band__profile">
+          <article class="profile" data-profile aria-label="Sailing profile"></article>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer" data-component="footer"></footer>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
