@@ -1,0 +1,273 @@
+/* ==========================================================================
+   CURRENT — marine identity
+   Loaded after style.css by pages that set <body data-theme="marine">.
+   Crisp, maritime, photographic: white and pale blue-gray, deep ocean navy,
+   one restrained sky-blue accent, sans-serif throughout. Pages that do not
+   opt in (currently the homepage) are untouched.
+   1. Tokens & base   2. Header / footer / buttons   3. Profile page overrides
+   4. Find a sail   5. Map   6. Sail detail
+   ========================================================================== */
+
+/* 1. Tokens & base --------------------------------------------------------- */
+body[data-theme="marine"] {
+  --cream: #f2f6fa;        /* page background */
+  --paper: #ffffff;
+  --sand: #e3ebf3;
+  --navy: #0a2540;
+  --ink-2: #38506a;
+  --muted: #5b6f86;
+  --rule: rgba(10, 37, 64, 0.12);
+  --rule-strong: rgba(10, 37, 64, 0.38);
+  --sky: #1c76bd;
+  --sky-soft: #e3effa;
+
+  --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: var(--sans);
+  --max: 80rem;
+  font-family: var(--sans);
+}
+
+[data-theme="marine"] .display-1,
+[data-theme="marine"] .display-2,
+[data-theme="marine"] .display-3 { font-weight: 700; letter-spacing: -0.035em; }
+[data-theme="marine"] .display-1 em,
+[data-theme="marine"] .display-2 em { font-style: normal; font-weight: inherit; }
+[data-theme="marine"] .eyebrow { font-weight: 700; }
+[data-theme="marine"] :focus-visible { outline-color: var(--sky); }
+[data-theme="marine"] .band :focus-visible,
+[data-theme="marine"] .find-hero :focus-visible { outline-color: #fff; }
+
+/* 2. Header / footer / buttons -------------------------------------------- */
+[data-theme="marine"] .site-header { background: var(--paper); border-bottom: 1px solid var(--rule); }
+[data-theme="marine"] .site-header__inner { height: 4.25rem; }
+[data-theme="marine"] .wordmark { font-family: var(--sans); font-weight: 800; font-size: 1.05rem; letter-spacing: 0.34em; }
+[data-theme="marine"] .nav { gap: clamp(1.25rem, 2.6vw, 2.25rem); font-weight: 600; }
+[data-theme="marine"] .nav a[aria-current="page"] { border-bottom: 2px solid var(--sky); }
+[data-theme="marine"] .nav__soon { opacity: 1; }
+[data-theme="marine"] .nav .btn { padding: 0.7rem 1.25rem; }
+
+[data-theme="marine"] .btn { border-radius: 4px; font-weight: 600; }
+[data-theme="marine"] .btn:hover { background: #14406a; border-color: #14406a; color: #fff; }
+[data-theme="marine"] .btn--ghost { background: transparent; color: var(--navy); }
+[data-theme="marine"] .btn--ghost:hover { background: var(--sky-soft); color: var(--navy); border-color: var(--navy); }
+[data-theme="marine"] .btn[disabled] { background: var(--sand); color: var(--muted); border-color: var(--sand); cursor: not-allowed; }
+
+[data-theme="marine"] .site-footer { background: var(--paper); }
+[data-theme="marine"] .site-footer .scale { display: none; }
+[data-theme="marine"] .link-arrow { border-bottom-color: var(--sky); }
+
+[data-theme="marine"] .verified { color: var(--sky); }
+[data-theme="marine"] .band .verified { color: #8ec9f5; }
+
+/* 3. Profile page overrides (same components, marine type) ---------------- */
+[data-theme="marine"] .sailor__name { font-weight: 700; font-size: clamp(3rem, 6.6vw, 5.75rem); line-height: 0.95; letter-spacing: -0.045em; }
+[data-theme="marine"] .dossier__title { font-weight: 700; font-size: 1.3rem; letter-spacing: -0.02em; }
+[data-theme="marine"] .lines__name { font-weight: 600; font-size: 1.125rem; letter-spacing: -0.01em; }
+[data-theme="marine"] .profile__stats dd { font-weight: 600; font-size: clamp(2.4rem, 3.6vw, 3.2rem); letter-spacing: -0.045em; }
+[data-theme="marine"] .mate__name { font-weight: 600; font-size: 1.125rem; }
+[data-theme="marine"] .mate__name a { text-decoration: none; }
+[data-theme="marine"] .mate__name a:hover { text-decoration: underline; text-underline-offset: 3px; }
+[data-theme="marine"] .sample-note strong { font-weight: 700; }
+[data-theme="marine"] .sailor__meta { border-bottom-color: var(--navy); }
+[data-theme="marine"] .dossier__row { border-top-color: var(--rule-strong); }
+[data-theme="marine"] .sailor__photo { border-radius: 6px; }
+[data-theme="marine"] .band-photo .photo__frame { border-radius: 6px; }
+
+/* 4. Find a sail ----------------------------------------------------------- */
+.find-hero {
+  position: relative; isolation: isolate;
+  display: flex; align-items: center;
+  min-height: clamp(16rem, 25vw, 21rem);
+  padding-block: 2.5rem;
+  color: #fff;
+}
+.find-hero .photo__frame { position: absolute; inset: 0; z-index: -1; aspect-ratio: auto; --scrim: 0.3; --ph: #22405e; --pos: 50% 66%; }
+.find-hero__text { max-width: 34rem; }
+.find-hero h1 { font-size: clamp(3rem, 7vw, 5.5rem); font-weight: 800; line-height: 0.95; letter-spacing: -0.045em; }
+.find-hero__sub { margin-top: 0.75rem; font-size: clamp(1.15rem, 2.2vw, 1.65rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
+.find-hero__line { margin-top: 0.9rem; font-size: 0.9375rem; opacity: 0.92; max-width: 28rem; }
+
+.finder { background: var(--paper); border-bottom: 1px solid var(--rule); }
+.finder__form {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 1rem; align-items: end; padding-block: 1.4rem 1.25rem;
+}
+.field { display: grid; gap: 0.4rem; }
+.field > span { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+.field select {
+  appearance: none; -webkit-appearance: none;
+  width: 100%; min-height: 3rem; padding: 0.7rem 2.5rem 0.7rem 0.95rem;
+  font: inherit; font-size: 0.9375rem; font-weight: 600; color: var(--navy);
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%230a2540' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 0.95rem center / 12px 8px;
+  border: 1px solid var(--rule-strong); border-radius: 4px; cursor: pointer;
+}
+.field select:hover { border-color: var(--navy); }
+.finder__submit { min-height: 3rem; padding-inline: 1.75rem; }
+
+.finder__row2 { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; }
+.types { display: flex; gap: 1.75rem; overflow-x: auto; scrollbar-width: none; margin-inline: -0.25rem; padding-inline: 0.25rem; }
+.types::-webkit-scrollbar { display: none; }
+.type-tab {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 0.7rem 0 0.85rem; font: inherit; font-size: 0.9375rem; font-weight: 600; color: var(--muted);
+  cursor: pointer; white-space: nowrap; transition: color 0.2s, border-color 0.2s;
+}
+.type-tab:hover { color: var(--navy); }
+.type-tab[aria-pressed="true"] { color: var(--navy); border-bottom-color: var(--sky); }
+.finder__clear { background: none; border: 0; padding: 0; font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--sky); cursor: pointer; white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; }
+
+.results { background: var(--cream); padding-block: 1.75rem 4.5rem; }
+.results__grid { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: 2rem; align-items: start; }
+.results__head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 1rem; }
+.results__head h2 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; }
+.cards { display: grid; gap: 1rem; }
+
+.sail-card {
+  position: relative; display: grid; grid-template-columns: 15rem minmax(0, 1fr) 14.5rem;
+  background: #fff; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden;
+  transition: border-color 0.2s;
+}
+.sail-card:hover, .sail-card.is-active { border-color: var(--sky); }
+.sail-card:hover .photo__media, .sail-card.is-active .photo__media { transform: scale(1.04); }
+.sail-card__photo { aspect-ratio: auto; min-height: 100%; --scrim: 0.05; }
+.sail-card__num {
+  position: absolute; top: 0.75rem; left: 0.75rem; z-index: 2;
+  width: 1.75rem; aspect-ratio: 1; display: grid; place-items: center;
+  border-radius: 50%; background: var(--navy); color: #fff; font-size: 0.8125rem; font-weight: 700;
+}
+.sail-card__body { padding: 1.25rem 1.4rem; min-width: 0; }
+.sail-card__type { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sky); }
+.sail-card__title { margin-top: 0.3rem; font-size: 1.5rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.03em; }
+.sail-card__title a { text-decoration: none; }
+.sail-card__title a::after { content: ""; position: absolute; inset: 0; z-index: 1; } /* whole card opens the sail */
+.sail-card__boat { margin-top: 0.2rem; color: var(--ink-2); font-weight: 500; }
+.sail-facts { display: grid; grid-template-columns: 4.25rem minmax(0, 1fr); gap: 0.4rem 0.75rem; margin-top: 1rem; font-size: 0.9375rem; }
+.sail-facts dt { padding-top: 0.1rem; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
+.sail-facts dd { font-weight: 600; }
+.sail-facts dd span { font-weight: 500; color: var(--ink-2); }
+
+.sail-card__side { display: flex; flex-direction: column; justify-content: space-between; gap: 1.25rem; padding: 1.25rem; border-left: 1px solid var(--rule); }
+.sail-skipper { display: flex; gap: 0.75rem; align-items: flex-start; }
+.avatar-ini {
+  flex: none; width: 2.75rem; aspect-ratio: 1; display: grid; place-items: center;
+  border-radius: 50%; background: var(--sky-soft); color: var(--navy);
+  font-size: 0.875rem; font-weight: 800; letter-spacing: 0.02em; text-decoration: none;
+}
+.sail-skipper .label { display: block; margin-bottom: 0.1rem; }
+.sail-skipper__name { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; text-decoration: none; }
+.sail-skipper__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.sail-skipper__meta { margin-top: 0.15rem; font-size: 0.8125rem; color: var(--muted); line-height: 1.4; }
+.sail-skipper a { position: relative; z-index: 2; }
+.sail-skipper__profile { display: inline-block; margin-top: 0.2rem; font-size: 0.8125rem; font-weight: 600; color: var(--sky); text-decoration: none; }
+.sail-skipper__profile:hover { text-decoration: underline; text-underline-offset: 3px; }
+.sail-card__cta { display: flex; gap: 0.5rem; position: relative; z-index: 2; }
+.sail-card__cta .btn { flex: 1; padding-inline: 1rem; }
+.save {
+  flex: none; width: 3rem; display: grid; place-items: center;
+  background: #fff; border: 1px solid var(--rule-strong); border-radius: 4px; color: var(--navy); cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.save:hover { border-color: var(--navy); }
+.save svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; }
+.save[aria-pressed="true"] { background: var(--sky-soft); border-color: var(--sky); color: var(--sky); }
+.save[aria-pressed="true"] svg { fill: currentColor; }
+
+.empty { padding: 2rem; background: #fff; border: 1px dashed var(--rule-strong); border-radius: 6px; }
+.empty h3 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; }
+.empty p { margin-top: 0.35rem; color: var(--ink-2); }
+.empty .btn { margin-top: 1rem; }
+
+.rail { position: sticky; top: 1rem; display: grid; gap: 1rem; }
+.aside-box { padding: 1.25rem; background: #fff; border: 1px solid var(--rule); border-radius: 6px; }
+.aside-box h3 { font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.02em; }
+.aside-box p { margin-top: 0.4rem; font-size: 0.9375rem; color: var(--ink-2); line-height: 1.5; }
+.aside-box .btn { margin-top: 1rem; width: 100%; }
+.aside-box--quiet { background: transparent; border-style: dashed; }
+.aside-box--quiet h3 { font-size: 0.9375rem; }
+.aside-box--quiet p { font-size: 0.875rem; }
+
+/* 5. Map -------------------------------------------------------------------- */
+.map { background: #fff; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.map svg { display: block; width: 100%; height: auto; }
+.map__cap { padding: 0.55rem 0.9rem; border-top: 1px solid var(--rule); font-size: 0.75rem; color: var(--muted); }
+.map__water { fill: #dbe8f3; }
+.map__land { fill: #f4f7fa; stroke: #c3d1de; stroke-width: 1; }
+.map__label { font: 600 10.5px var(--sans); fill: #5b6f86; }
+.map__label--big { font-size: 13px; font-weight: 700; fill: #38506a; }
+.map__route { fill: none; stroke: var(--sky); stroke-width: 1.6; stroke-dasharray: 4 4; }
+.map__pin { cursor: pointer; transition: opacity 0.25s; }
+.map__pin circle { fill: var(--navy); stroke: #fff; stroke-width: 2.5; transition: fill 0.2s; }
+.map__pin text { font: 800 12px var(--sans); fill: #fff; text-anchor: middle; pointer-events: none; }
+.map__pin:hover circle, .map__pin.is-active circle, .map__pin:focus-visible circle { fill: var(--sky); }
+.map__pin.is-off { opacity: 0.2; pointer-events: none; }
+
+@media (max-width: 64rem) {
+  .results__grid { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; }
+  .map { display: none; }
+  .sail-card__num { display: none; }
+}
+@media (min-width: 64.01rem) and (max-width: 78rem) {
+  .sail-card { grid-template-columns: 11rem minmax(0, 1fr) 13rem; }
+}
+@media (max-width: 52rem) {
+  .finder__form { grid-template-columns: 1fr 1fr; padding-block: 1.1rem 1rem; }
+  .finder__submit { grid-column: 1 / -1; }
+  .finder__row2 { gap: 1rem; }
+  .find-hero { min-height: 15rem; }
+  .sail-card { grid-template-columns: 1fr; }
+  .sail-card__photo { aspect-ratio: 16 / 10; min-height: 0; }
+  .sail-card__side { border-left: 0; border-top: 1px solid var(--rule); }
+}
+@media (max-width: 30rem) {
+  .finder__row2 { flex-direction: column; align-items: flex-start; gap: 0; }
+  .finder__clear { margin-bottom: 0.9rem; order: 2; }
+}
+
+/* 6. Sail detail ------------------------------------------------------------ */
+.detail { background: var(--cream); padding-block: 1.5rem 4.5rem; }
+.detail .link-back { display: inline-block; margin-bottom: 1.25rem; font-size: 0.9375rem; }
+.detail__grid { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 2rem; align-items: start; }
+.detail__photo .photo__frame { --ratio: 16 / 9; --scrim: 0.05; border-radius: 6px; }
+.detail__head { margin-top: 1.5rem; }
+.detail__title { margin-top: 0.3rem; font-size: clamp(2rem, 4.4vw, 3.25rem); font-weight: 800; line-height: 1.02; letter-spacing: -0.045em; }
+.detail__sub { margin-top: 0.4rem; font-size: 1.125rem; color: var(--ink-2); font-weight: 500; }
+.detail__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 2rem; margin-top: 1.5rem; border-top: 1px solid var(--rule-strong); }
+.detail__facts > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 0.75rem; padding-block: 0.85rem; border-bottom: 1px solid var(--rule); }
+.detail__facts dt { font-size: 0.8125rem; font-weight: 600; color: var(--muted); padding-top: 0.1rem; }
+.detail__facts dd { font-weight: 600; }
+.detail__about { margin-top: 2rem; max-width: 42rem; }
+.detail__about h2 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; }
+.detail__about p { margin-top: 0.5rem; font-size: 1.0625rem; line-height: 1.6; color: var(--ink-2); }
+
+.skipper-panel { margin-top: 2.5rem; padding: clamp(1.25rem, 3vw, 2rem); background: #fff; border: 1px solid var(--rule); border-radius: 6px; }
+.skipper-panel__top { display: flex; gap: 1rem; align-items: center; }
+.skipper-panel .avatar-ini { width: 4rem; font-size: 1.125rem; }
+.skipper-panel__name { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.03em; }
+.skipper-panel__name a { text-decoration: none; }
+.skipper-panel__name a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.skipper-panel__where { color: var(--muted); font-size: 0.9375rem; }
+.skipper-panel__groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); }
+.skipper-panel__groups h3 { font-size: 0.6875rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.skipper-panel__groups p { margin-top: 0.4rem; font-size: 0.9375rem; line-height: 1.5; }
+.skipper-panel__nums { display: flex; gap: 1.5rem; margin-top: 0.4rem; }
+.skipper-panel__nums strong { display: block; font-size: 2rem; font-weight: 600; line-height: 1; letter-spacing: -0.04em; }
+.skipper-panel__nums span { font-size: 0.75rem; color: var(--muted); }
+.skipper-panel .btn { margin-top: 1.5rem; }
+
+.detail__aside { position: sticky; top: 1rem; }
+.request-panel { padding: 1.4rem; background: #fff; border: 1px solid var(--rule); border-radius: 6px; }
+.request-panel h2 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; }
+.request-panel__sum { margin-top: 0.75rem; display: grid; gap: 0.15rem; font-size: 0.9375rem; color: var(--ink-2); }
+.request-panel__sum strong { color: var(--navy); }
+.request-panel .btn { width: 100%; margin-top: 1.25rem; }
+.request-panel__note { margin-top: 0.75rem; font-size: 0.8125rem; color: var(--muted); line-height: 1.45; }
+
+@media (max-width: 64rem) {
+  .detail__grid { grid-template-columns: minmax(0, 1fr); }
+  .detail__aside { position: static; }
+}
+@media (max-width: 52rem) {
+  .detail__facts { grid-template-columns: 1fr; }
+  .skipper-panel__groups { grid-template-columns: 1fr; }
+}

@@ -4,26 +4,154 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Find a sail — CURRENT</title>
-  <meta name="theme-color" content="#f5f0e4">
+  <meta name="description" content="Races, day sails, deliveries and practice sails on San Francisco Bay, with the skipper's sailing profile alongside.">
+  <meta name="theme-color" content="#0a2540">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="marine.css">
 </head>
-<body data-page="find">
+<body data-page="find" data-theme="marine">
+
   <header class="site-header" data-component="header"></header>
+
   <main id="main">
-    <div class="container">
-      <div class="page-intro">
-        <p class="eyebrow">Coming next</p>
-        <h1 class="display-1">Find a sail</h1>
-        <p class="lede">The full list of open sails will live here.</p>
-        <a class="link-arrow" href="index.html"><span>←</span> Back to home</a>
+
+    <!-- Hero: images/find-hero-golden-gate.jpg -->
+    <section class="find-hero">
+      <div class="photo__frame">
+        <div class="photo__media">
+          <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/find-hero-golden-gate.jpg</span></div>
+          <img src="images/find-hero-golden-gate.jpg" alt="A fleet of sailboats racing on San Francisco Bay beneath the Golden Gate Bridge" decoding="async" onerror="this.hidden=true">
+        </div>
+        <div class="photo__scrim"></div>
       </div>
-    </div>
+      <div class="container">
+        <div class="find-hero__text">
+          <h1>Find a sail.</h1>
+          <p class="find-hero__sub">Get on the water with great people.</p>
+          <p class="find-hero__line">Races. Day sails. Deliveries. Practice sails. More ways to get on the water.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filters -->
+    <section class="finder" aria-label="Search sails">
+      <div class="container">
+        <form class="finder__form" id="finder">
+          <label class="field"><span>Location</span>
+            <select name="area">
+              <option value="all">San Francisco Bay</option>
+              <option>San Francisco</option>
+              <option>Berkeley</option>
+              <option>Sausalito</option>
+              <option>Alameda</option>
+            </select>
+          </label>
+          <label class="field"><span>Date</span>
+            <select name="date">
+              <option value="any">Any date</option>
+              <option value="weekend">This weekend</option>
+              <option value="week">Next 7 days</option>
+            </select>
+          </label>
+          <label class="field"><span>Type</span>
+            <select name="type">
+              <option value="all">All types</option>
+              <option>Racing</option>
+              <option>Day sail</option>
+              <option>Practice</option>
+              <option>Delivery</option>
+              <option>Social sail</option>
+            </select>
+          </label>
+          <label class="field"><span>Experience level</span>
+            <select name="level">
+              <option value="all">All levels</option>
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="experienced">Experienced</option>
+            </select>
+          </label>
+          <button class="btn finder__submit" type="submit">Search sails</button>
+        </form>
+        <div class="finder__row2">
+          <div class="types" role="group" aria-label="Sail type">
+            <button class="type-tab" type="button" data-type="all" aria-pressed="true">All</button>
+            <button class="type-tab" type="button" data-type="Racing" aria-pressed="false">Racing</button>
+            <button class="type-tab" type="button" data-type="Day sail" aria-pressed="false">Day sail</button>
+            <button class="type-tab" type="button" data-type="Practice" aria-pressed="false">Practice</button>
+            <button class="type-tab" type="button" data-type="Delivery" aria-pressed="false">Delivery</button>
+            <button class="type-tab" type="button" data-type="Social sail" aria-pressed="false">Social sail</button>
+          </div>
+          <button class="finder__clear" type="button" hidden>Clear filters</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results + map -->
+    <section class="results" id="results">
+      <div class="container results__grid">
+        <div>
+          <div class="results__head">
+            <h2 id="count" aria-live="polite"></h2>
+            <p class="small">Soonest first</p>
+          </div>
+          <div class="cards" id="cards"></div>
+        </div>
+
+        <aside class="rail" aria-label="Map and profile">
+          <div class="map">
+            <svg viewBox="0 0 400 400" role="img" aria-label="Illustrative map of San Francisco Bay showing where each sail meets">
+              <rect class="map__water" width="400" height="400"/>
+              <!-- Marin -->
+              <path class="map__land" d="M0 0 L218 0 L214 34 L200 62 L186 88 L176 104 L196 112 L204 124 L186 136 L166 132 L150 146 L136 160 L120 172 L102 190 L86 206 L74 222 L56 226 L36 220 L0 214 Z"/>
+              <!-- San Francisco -->
+              <path class="map__land" d="M30 250 L62 240 L88 246 L118 248 L142 256 L160 268 L172 284 L186 302 L196 322 L204 346 L214 372 L226 400 L0 400 L0 300 L18 270 Z"/>
+              <!-- East Bay -->
+              <path class="map__land" d="M400 0 L330 0 L318 40 L300 66 L296 96 L282 118 L276 140 L270 162 L264 186 L258 210 L254 226 L262 246 L268 270 L276 296 L290 326 L304 356 L316 400 L400 400 Z"/>
+              <!-- Alameda, Treasure Island, Angel Island -->
+              <path class="map__land" d="M222 250 L246 246 L262 254 L268 266 L250 274 L228 270 Z"/>
+              <path class="map__land" d="M200 218 L214 212 L222 220 L212 228 Z"/>
+              <ellipse class="map__land" cx="170" cy="150" rx="9" ry="7"/>
+              <!-- Delivery route south -->
+              <path class="map__route" d="M184 298 C176 330 168 360 158 392"/>
+
+              <text class="map__label" x="152" y="212">Golden Gate</text>
+              <text class="map__label" x="26" y="112">Marin</text>
+              <text class="map__label map__label--big" x="44" y="352">San Francisco</text>
+              <text class="map__label" x="300" y="146">Berkeley</text>
+              <text class="map__label" x="292" y="240">Oakland</text>
+              <text class="map__label" x="210" y="292">Alameda</text>
+              <text class="map__label" x="116" y="386">to Monterey</text>
+              <text class="map__label" x="58" y="180">Sausalito</text>
+
+              <g id="pins"></g>
+            </svg>
+            <p class="map__cap">Illustrative map. Pins match the numbers on each sail.</p>
+          </div>
+
+          <div class="aside-box">
+            <h3>Can't find the right sail?</h3>
+            <p>Create a CURRENT profile so skippers can understand your sailing experience.</p>
+            <a class="btn btn--ghost" href="create-profile.html">Create your profile</a>
+          </div>
+
+          <div class="aside-box aside-box--quiet">
+            <h3>Skipper looking for crew?</h3>
+            <p>Posting a sail is coming soon.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
   </main>
+
   <footer class="site-footer" data-component="footer"></footer>
+
   <script src="data.js"></script>
   <script src="script.js"></script>
+  <script src="sails.js"></script>
 </body>
 </html>

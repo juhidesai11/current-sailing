@@ -422,6 +422,87 @@ ul { list-style: none; }
 .page-intro { padding-block: clamp(3rem, 7vw, 6rem); max-width: 46rem; display: grid; gap: 1.5rem; justify-items: start; }
 .page-intro .lede { color: var(--ink-2); }
 
+/* Sailing profile page (profile.html) -------------------------------------- */
+.sample-note { border-bottom: 1px solid var(--rule); }
+.sample-note__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 2rem; padding-block: 0.85rem; font-size: 0.8125rem; }
+.sample-note p { color: var(--muted); }
+.sample-note strong { color: var(--navy); font-weight: 500; }
+.link-back { text-decoration: none; font-weight: 500; }
+.link-back:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.sailor { padding-block: clamp(2rem, 5vw, 4rem) clamp(2.5rem, 5vw, 4.5rem); }
+.sailor__grid { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: clamp(1.5rem, 3vw, 3rem); row-gap: 2rem; }
+.sailor__photo { grid-column: 1 / span 5; aspect-ratio: auto; min-height: 34rem; --ph: #b9c7cf; --ph-ink: rgba(14, 34, 56, 0.65); --pos: 50% 22%; }
+.sailor__main { grid-column: 7 / -1; display: flex; flex-direction: column; justify-content: space-between; gap: 2.5rem; }
+.sailor__meta { display: flex; justify-content: space-between; gap: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--navy); }
+.sailor__name { font-family: var(--serif); font-weight: 350; font-size: clamp(3.4rem, 7.6vw, 7rem); line-height: 0.92; letter-spacing: -0.035em; }
+.sailor__name span { display: block; }
+.sailor__area { margin-top: 1.1rem; font-size: 1.0625rem; color: var(--ink-2); }
+.verify { display: flex; align-items: flex-start; gap: 0.6rem; margin-top: 1.1rem; font-size: 0.9375rem; line-height: 1.45; }
+.verify .verified { margin-top: 0.2rem; }
+.verify strong { font-weight: 500; }
+.verify small { display: block; color: var(--muted); font-size: 0.8125rem; }
+.sailor__bio { margin-top: 1.5rem; max-width: 32rem; font-size: 1.125rem; line-height: 1.55; color: var(--ink-2); }
+.sailor .profile__stats { margin-top: 2rem; }
+.sailor__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 1.75rem; }
+
+.band-photo .photo__frame { --ratio: 21 / 9; --scrim: 0.05; }
+
+.dossier { padding-bottom: var(--section); }
+.dossier__row {
+  display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 2rem; row-gap: 1.25rem;
+  padding-block: clamp(2rem, 4vw, 3rem); border-top: 1px solid var(--navy);
+}
+.dossier__head { grid-column: 1 / span 3; }
+.dossier__title { font-family: var(--serif); font-weight: 350; font-size: clamp(1.6rem, 2.4vw, 2.1rem); line-height: 1.1; letter-spacing: -0.015em; }
+.dossier__body { grid-column: 4 / -1; }
+.dossier__note { margin-bottom: 1rem; }
+
+.lines { --cols: minmax(9rem, 0.9fr) 2fr; border-top: 1px solid var(--rule); }
+.lines--boats { --cols: minmax(9rem, 1fr) 1.6fr auto; }
+.lines--history { --cols: 5rem 1.6fr 1fr; }
+.lines li { display: grid; grid-template-columns: var(--cols); gap: 0.25rem 2rem; align-items: baseline; padding-block: 1.15rem; border-bottom: 1px solid var(--rule); }
+.lines__name { font-family: var(--serif); font-size: 1.45rem; line-height: 1.15; letter-spacing: -0.01em; }
+.lines__meta { color: var(--ink-2); }
+.lines__aside { color: var(--muted); font-size: 0.9375rem; }
+.lines--boats .lines__aside { text-align: right; }
+.lines__date { font-size: 0.9375rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.mates-head { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 2rem; row-gap: 1rem; align-items: end; }
+.mates-head h2 { grid-column: 1 / span 7; }
+.mates-head .lede { grid-column: 9 / -1; color: rgba(245, 240, 228, 0.85); }
+.mates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5rem clamp(1.5rem, 3vw, 3rem); margin-top: clamp(2.5rem, 5vw, 4rem); }
+.mate { display: grid; grid-template-columns: auto 1fr; gap: 1.1rem; align-items: center; padding-top: 1.4rem; border-top: 1px solid rgba(245, 240, 228, 0.28); }
+.mate__avatar {
+  width: 3.75rem; aspect-ratio: 1; display: grid; place-items: center;
+  border-radius: 50%; background: var(--sand); color: var(--navy);
+  font-size: 0.9375rem; font-weight: 500; letter-spacing: 0.04em;
+}
+.mate:nth-child(2) .mate__avatar { background: #c5d1d8; }
+.mate:nth-child(3) .mate__avatar { background: #e3d6bd; }
+.mate:nth-child(4) .mate__avatar { background: #d4dde2; }
+.mate:nth-child(5) .mate__avatar { background: #ddd3c2; }
+.mate:nth-child(6) .mate__avatar { background: #b9c7cf; }
+.mate__name { display: flex; align-items: center; gap: 0.45rem; font-family: var(--serif); font-size: 1.5rem; line-height: 1.1; letter-spacing: -0.01em; }
+.mate__meta { margin-top: 0.2rem; font-size: 0.875rem; color: rgba(245, 240, 228, 0.72); }
+.mates-more { margin-top: 2rem; font-size: 0.9375rem; color: rgba(245, 240, 228, 0.72); }
+.band .verified path { stroke: var(--navy); }
+
+@media (max-width: 64rem) {
+  .sailor__photo, .sailor__main { grid-column: 1 / -1; }
+  .sailor__photo { min-height: 0; aspect-ratio: auto; height: min(26rem, 92vw); }
+  .mates { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 52rem) {
+  .dossier__head, .dossier__body { grid-column: 1 / -1; }
+  .lines, .lines--boats, .lines--history { --cols: 1fr; }
+  .lines--boats .lines__aside { text-align: left; }
+  .lines li { gap: 0.2rem; }
+  .mates-head h2, .mates-head .lede { grid-column: 1 / -1; }
+  .band-photo .photo__frame { --ratio: 4 / 3; }
+}
+@media (max-width: 34rem) { .mates { grid-template-columns: 1fr; } }
+
 /* Photo credits list */
 .credits { display: grid; gap: 1.25rem; margin-top: 1rem; width: 100%; }
 .credits li { padding-top: 1rem; border-top: 1px solid var(--rule); }

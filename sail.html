@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sailing profile — CURRENT</title>
-  <meta name="description" content="A sailing profile: credentials, boats, crew positions and the people someone has sailed with.">
+  <title>Sail — CURRENT</title>
   <meta name="theme-color" content="#0a2540">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,16 +11,17 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="marine.css">
 </head>
-<body data-page="profile" data-theme="marine">
+<body data-page="find" data-theme="marine">
 
   <header class="site-header" data-component="header"></header>
 
-  <!-- Rendered by script.js from data.js. profile.html?p=<slug> picks the sailor. -->
-  <main id="main" data-profile-page></main>
+  <!-- Rendered by sails.js from data.js. sail.html?id=<sail id> picks the sail. -->
+  <main id="main" class="detail" data-sail-detail></main>
 
   <footer class="site-footer" data-component="footer"></footer>
 
   <script src="data.js"></script>
   <script src="script.js"></script>
+  <script src="sails.js"></script>
 </body>
 </html>
