@@ -26,6 +26,10 @@
   const initials = (name) => name.split(" ").map((w) => w[0]).join("");
   const skipperOf = (s) => data.profiles[s.skipper];
 
+  /* Circular person avatar: initials until the photo loads, then the photo covers them. */
+  const avatar = (p, cls = "") =>
+    `<span class="avatar ${cls}"><span aria-hidden="true">${esc(initials(p.name))}</span>${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" decoding="async" onerror="this.hidden=true">` : ""}</span>`;
+
   /* Saved sails (per-browser, optional) ---------------------------------- */
   const KEY = "current.saved";
   const readSaved = () => {
@@ -69,7 +73,7 @@
           </div>
           <div class="sail-card__side">
             <div class="sail-skipper">
-              <a class="avatar-ini" href="${prof}" aria-label="${esc(p.name)}, CURRENT profile" tabindex="-1">${esc(initials(p.name))}</a>
+              <a class="avatar-ini" href="${prof}" aria-label="${esc(p.name)}, CURRENT profile" tabindex="-1">${esc(initials(p.name))}<img src="${esc(p.photo)}" alt="" loading="lazy" decoding="async" onerror="this.hidden=true"></a>
               <div>
                 <span class="label">Skipper</span>
                 <a class="sail-skipper__name" href="${prof}">${esc(p.name)}${p.verification ? verifiedTick() : ""}</a>
@@ -162,10 +166,39 @@
     render();
   }
 
+  /* Landing: a taste of Find a sail (same data, its own photography) -------- */
+  const previewEl = document.querySelector("[data-landing-sails]");
+  if (previewEl) {
+    const IDS = ["friday-night-race", "saturday-morning-sail", "sunday-race"];
+    previewEl.innerHTML = IDS.map((id) => sails.find((x) => x.id === id))
+      .filter(Boolean)
+      .map((s) => {
+        const p = skipperOf(s);
+        return `
+          <a class="mini-sail" href="sail.html?id=${esc(s.id)}">
+            <div class="photo__frame" style="--ph:${esc(s.preview.ph)};--pos:${esc(s.preview.pos)}">
+              ${photoMedia(s.preview.photo, s.preview.alt)}
+              <div class="photo__scrim"></div>
+              <span class="mini-sail__when">${esc(whenShort(s, s.date))}</span>
+            </div>
+            <div class="mini-sail__body">
+              <p class="sail-card__type">${esc(s.type)}</p>
+              <h3 class="mini-sail__title">${esc(s.title)}</h3>
+              <p class="mini-sail__boat">${esc(s.boat)} · ${esc(s.location)}</p>
+              <p class="mini-sail__meta">${s.positions.map(esc).join(" · ")} <span>· ${esc(s.level)}</span></p>
+              <p class="mini-sail__skipper"><span class="label">Skipper</span> ${esc(p.name)}${verifiedTick()}</p>
+            </div>
+          </a>`;
+      })
+      .join("");
+  }
+
   /* Sail detail ------------------------------------------------------------ */
+  /* One layout for every sail. Everything on the page comes from the sail and its skipper's data. */
   const detailEl = document.querySelector("[data-sail-detail]");
   if (detailEl) {
     const s = sails.find((x) => x.id === new URLSearchParams(location.search).get("id"));
+
     if (!s) {
       detailEl.innerHTML = `
         <div class="container"><div class="page-intro">
@@ -175,89 +208,131 @@
         </div></div>`;
     } else {
       const p = skipperOf(s);
-      const prof = `profile.html?p=${esc(p.slug)}`;
+      const me = data.profiles[data.currentUser];
+      const first = p.name.split(" ")[0];
       const dateLong = s.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-      const when = s.multiDay ? `Departs ${dateLong}, ${clock(s.date)}` : `${dateLong}, ${clock(s.date)}`;
+      const when = s.multiDay ? `Departs ${dateLong} · ${clock(s.date)}` : `${dateLong} · ${clock(s.date)}`;
+      const REQ = "current.requests";
+      const readReq = () => { try { return JSON.parse(sessionStorage.getItem(REQ)) || []; } catch (e) { return []; } };
+      const writeReq = (v) => { try { sessionStorage.setItem(REQ, JSON.stringify(v)); } catch (e) { /* ignore */ } };
       document.title = `${s.title} — Find a sail — CURRENT`;
+
+      /* Reusable skipper preview: filled entirely from the skipper's profile data. */
+      const skipperPreview = (sk) => {
+        const withPeople = sk.sailedWith.map((x) => data.profiles[x.slug]).filter(Boolean);
+        return `
+          <section class="skipper-card" aria-labelledby="skipper-heading">
+            <p class="label" id="skipper-heading">Your skipper</p>
+            <div class="skipper-card__id">
+              ${avatar(sk, "avatar--lg")}
+              <div>
+                <h2 class="skipper-card__name">${esc(sk.name)}${verifiedTick()}</h2>
+                <p class="skipper-card__area">${esc(sk.sailingArea)}</p>
+              </div>
+            </div>
+            <dl class="skipper-card__nums">
+              <div><dd>${sk.confirmedSails}</dd><dt>confirmed sails</dt></div>
+              <div><dd>${sk.repeatConnections}</dd><dt>repeat connections</dt></div>
+            </dl>
+            <div class="skipper-card__with">
+              <span>Sailed with:</span>
+              <ul class="avatar-row">
+                ${withPeople.map((m) => `<li title="${esc(m.name)}">${avatar(m)}</li>`).join("")}
+                <li class="more">+${sk.sailedWithMore}</li>
+              </ul>
+            </div>
+            <a class="btn btn--ghost" href="profile.html?p=${esc(sk.slug)}">View ${esc(first)}’s CURRENT profile <span aria-hidden="true">→</span></a>
+          </section>`;
+      };
 
       detailEl.innerHTML = `
         <div class="container">
           <a class="link-back" href="find-a-sail.html">← All sails</a>
           <div class="detail__grid">
-            <div class="detail__main">
+
+            <div class="detail__left">
               <figure class="detail__photo">
-                <div class="photo__frame" style="--ph:${esc(s.ph)};--pos:${esc(s.pos)}">
+                <div class="photo__frame" style="--ph:${esc(s.ph)};--pos:${esc(s.posDetail || s.pos)}">
                   ${photoMedia(s.photo, s.alt)}
                   <div class="photo__scrim"></div>
                 </div>
               </figure>
 
-              <div class="detail__head">
-                <p class="sail-card__type">${esc(s.type)}</p>
-                <h1 class="detail__title">${esc(s.title)}</h1>
-                <p class="detail__sub">${esc(s.boat)} · ${esc(s.location)}</p>
-              </div>
-
-              <dl class="detail__facts">
-                <div><dt>When</dt><dd>${esc(when)}</dd></div>
-                <div><dt>Length</dt><dd>${esc(s.duration)}</dd></div>
-                <div><dt>Level</dt><dd>${esc(s.level)}</dd></div>
-                <div><dt>Crew needed</dt><dd>${esc(s.crewNeeded)}</dd></div>
-                <div><dt>Positions</dt><dd>${s.positions.map(esc).join(" · ")}</dd></div>
-                <div><dt>Meet at</dt><dd>${esc(s.meet)}</dd></div>
-                <div><dt>Bring</dt><dd>${esc(s.bring)}</dd></div>
+              <dl class="detail__practical">
+                <div><dd>${esc(s.duration)}</dd><dt>Duration</dt></div>
+                <div><dd>${esc(s.meet)}</dd><dt>Meet</dt></div>
+                <div><dd>${esc(s.bring.charAt(0).toUpperCase() + s.bring.slice(1))}</dd><dt>What to bring</dt></div>
               </dl>
 
               <div class="detail__about">
                 <h2>About this sail</h2>
                 <p>${esc(s.about)}</p>
               </div>
-
-              <section class="skipper-panel" aria-labelledby="skipper-heading">
-                <p class="label" id="skipper-heading">Your skipper</p>
-                <div class="skipper-panel__top" style="margin-top:0.9rem">
-                  <a class="avatar-ini" href="${prof}" aria-label="${esc(p.name)}, CURRENT profile" tabindex="-1">${esc(initials(p.name))}</a>
-                  <div>
-                    <p class="skipper-panel__name"><a href="${prof}">${esc(p.name)}</a>${verifiedTick()}</p>
-                    <p class="skipper-panel__where">${esc(p.homeWaters)}</p>
-                  </div>
-                </div>
-                <div class="skipper-panel__groups">
-                  <div>
-                    <h3>Sailing history on CURRENT</h3>
-                    <div class="skipper-panel__nums">
-                      <div><strong>${p.confirmedSails}</strong><span>confirmed sails</span></div>
-                      <div><strong>${p.repeatConnections}</strong><span>repeat connections</span></div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3>Identity</h3>
-                    <p>${esc(p.verification.status)}<br><span class="small">${esc(p.verification.note)}</span></p>
-                  </div>
-                  <div>
-                    <h3>In their words</h3>
-                    <p>${esc(p.bio)}</p>
-                  </div>
-                </div>
-                <a class="btn btn--ghost" href="${prof}">View ${esc(p.name.split(" ")[0])}’s CURRENT profile</a>
-              </section>
             </div>
 
-            <aside class="detail__aside" aria-label="Request to crew">
-              <div class="request-panel">
-                <h2>Request to crew</h2>
-                <div class="request-panel__sum">
-                  <strong>${esc(s.title)}</strong>
-                  <span>${esc(when)}</span>
-                  <span>${esc(s.boat)} · ${esc(s.location)}</span>
-                  <span>Needs ${s.positions.map(esc).join(" · ")}</span>
-                </div>
-                <button class="btn" type="button" disabled>Request to crew</button>
-                <p class="request-panel__note">Requests come next in this prototype. For now, look through ${esc(p.name.split(" ")[0])}’s profile.</p>
+            <div class="detail__side">
+              <div class="detail__info">
+                <p class="sail-card__type">${esc(s.type)}</p>
+                <h1 class="detail__title">${esc(s.title)}</h1>
+                <p class="detail__sub">${esc(s.boat)} · ${esc(s.location)}</p>
+                <p class="detail__when">${esc(when)}</p>
+                <dl class="detail__stats">
+                  <div><dd>${esc(s.level)}</dd><dt>Experience level</dt></div>
+                  <div><dd>${esc(s.crewNeeded)}</dd><dt>Crew needed</dt></div>
+                  <div><dd>${s.positions.map(esc).join(" · ")}</dd><dt>Positions</dt></div>
+                </dl>
+                <button class="btn btn--lg detail__request" type="button" data-request></button>
               </div>
-            </aside>
+              ${skipperPreview(p)}
+            </div>
+
           </div>
-        </div>`;
+        </div>
+
+        <dialog class="modal" aria-labelledby="modal-title">
+          <div class="modal__panel" data-state="form">
+            <p class="label">Request to join</p>
+            <h2 class="modal__title" id="modal-title">${esc(s.title)}</h2>
+            <p class="modal__lede">Your CURRENT profile will be shared with ${esc(first)} so they can see your sailing experience and history.</p>
+            <div class="modal__me">
+              ${avatar(me, "avatar--sm")}
+              <div>
+                <p class="modal__me-name">${esc(me.name)}${verifiedTick()}</p>
+                <p class="modal__me-meta">${esc(me.sailingArea)} · ${me.confirmedSails} confirmed sails · ${me.repeatConnections} repeat connections</p>
+                <p class="modal__me-meta">Roles: ${me.roles.map((r) => esc(r.name)).join(", ")}</p>
+              </div>
+            </div>
+            <div class="modal__actions">
+              <a class="btn btn--ghost" href="profile.html?p=${esc(me.slug)}" target="_blank" rel="noopener">Preview my profile</a>
+              <button class="btn" type="button" data-send autofocus>Send request</button>
+            </div>
+          </div>
+          <div class="modal__panel" data-state="sent" hidden>
+            <h2 class="modal__title" id="modal-sent">Request sent</h2>
+            <p class="modal__lede">Prototype interaction only. No real request has been sent.</p>
+            <div class="modal__actions"><button class="btn" type="button" data-done>Done</button></div>
+          </div>
+        </dialog>`;
+
+      /* Request to crew interaction */
+      const modal = detailEl.querySelector(".modal");
+      const reqBtn = detailEl.querySelector("[data-request]");
+      const showState = (name) => modal.querySelectorAll("[data-state]").forEach((el) => { el.hidden = el.dataset.state !== name; });
+      const paintButton = () => {
+        const sent = readReq().includes(s.id);
+        reqBtn.innerHTML = sent ? "Request sent" : `Request to crew <span aria-hidden="true">→</span>`;
+        reqBtn.disabled = sent;
+      };
+      paintButton();
+      reqBtn.addEventListener("click", () => { showState("form"); modal.showModal(); });
+      modal.querySelector("[data-send]").addEventListener("click", () => {
+        writeReq([...new Set([...readReq(), s.id])]);
+        showState("sent");
+        paintButton();
+        modal.querySelector("[data-done]").focus();
+      });
+      modal.querySelector("[data-done]").addEventListener("click", () => modal.close());
+      modal.addEventListener("click", (e) => { if (e.target === modal) modal.close(); }); /* backdrop */
     }
   }
 })();

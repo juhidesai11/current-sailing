@@ -1,8 +1,7 @@
 /* ==========================================================================
    CURRENT — shared styles
    1. Tokens   2. Base   3. Layout   4. Type   5. Header / footer
-   6. Buttons & links   7. Photo   8. Hero   9. Tiles   10. Sail cards
-   11. Profile   12. Band   13. Motion
+   6. Buttons & links   7. Photo   9. Tiles   13. Motion
    ========================================================================== */
 
 /* 1. Tokens ---------------------------------------------------------------- */
@@ -144,17 +143,6 @@ ul { list-style: none; }
   font: inherit; font-size: 0.9375rem; color: inherit; cursor: pointer;
 }
 
-/* Home: header floats over the hero photo */
-[data-page="home"] .site-header {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 10;
-  border-bottom: 0; color: var(--cream);
-}
-
-@media (min-width: 52.01rem) {
-  [data-page="home"] .nav .btn { background: var(--cream); color: var(--navy); border-color: var(--cream); }
-  [data-page="home"] .nav .btn:hover { background: transparent; color: var(--cream); }
-}
-
 @media (max-width: 52rem) {
   .nav-toggle { display: inline-flex; }
   .nav {
@@ -250,32 +238,6 @@ ul { list-style: none; }
 /* flat tint (not a gradient) to keep text legible over any photo */
 .photo__scrim { position: absolute; inset: 0; background: var(--navy); opacity: var(--scrim, 0); pointer-events: none; }
 
-/* 8. Hero ------------------------------------------------------------------ */
-.hero {
-  position: relative; isolation: isolate;
-  display: flex; align-items: flex-end;
-  min-height: clamp(36rem, 94svh, 60rem);
-  padding-block: 8rem clamp(2.5rem, 5vw, 4.5rem);
-  color: var(--cream);
-}
-.hero__photo { position: absolute; inset: 0; z-index: -1; aspect-ratio: auto; --scrim: 0.36; --ph: #16324d; }
-.hero__photo .photo__ph::before { display: none; }
-.hero__photo .photo__ph { justify-content: flex-start; align-items: flex-end; text-align: right; padding: 6.5rem var(--gutter) 0; }
-
-.hero__inner {
-  display: grid; grid-template-columns: repeat(12, 1fr);
-  column-gap: 2rem; row-gap: 2rem; align-items: end;
-}
-.hero__title { grid-column: 1 / span 8; }
-.hero__aside { grid-column: 9 / -1; display: grid; gap: 1.75rem; padding-bottom: 0.75rem; }
-.hero__aside .lede { color: rgba(245, 240, 228, 0.95); }
-.hero__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-
-@media (max-width: 64rem) {
-  .hero__title, .hero__aside { grid-column: 1 / -1; }
-}
-@media (max-width: 52rem) { .hero__photo { --scrim: 0.5; } }
-
 /* 9. Tiles: People / Skills / Boats ---------------------------------------- */
 .tiles {
   display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: 1fr 1fr;
@@ -304,7 +266,6 @@ ul { list-style: none; }
 .tile__more span { display: inline-block; transition: transform 0.25s var(--ease); }
 .tile:hover .tile__more { border-bottom-color: var(--cream); }
 .tile:hover .tile__more span { transform: translateX(5px); }
-.tile__later { position: absolute; top: 1.15rem; right: 1.25rem; z-index: 2; font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
 
 @media (max-width: 52rem) {
   .tiles { display: flex; flex-direction: column; height: auto; }
@@ -312,196 +273,9 @@ ul { list-style: none; }
   .tile--skills, .tile--boats { aspect-ratio: 4 / 3.2; }
 }
 
-/* 10. Sail cards ----------------------------------------------------------- */
-.sails {
-  display: grid; grid-template-columns: repeat(12, 1fr);
-  column-gap: clamp(1.25rem, 2.5vw, 2.5rem); row-gap: clamp(3rem, 5vw, 4.5rem);
-  align-items: start;
-}
-.sail { grid-column: span 5; display: block; color: inherit; text-decoration: none; }
-.sail--wide { grid-column: span 7; }
-.sail .photo__frame { --ratio: 1 / 1; --scrim: 0.06; }
-.sail--wide .photo__frame { --ratio: 3 / 2; }
-.sail:hover .photo__media { transform: scale(1.045); }
-.sail .photo__ph { --ph-ink: rgba(245, 240, 228, 0.78); }
-
-.sail__when {
-  position: absolute; top: 0; left: 0; z-index: 2;
-  background: var(--cream); color: var(--navy);
-  padding: 0.6rem 1rem; font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.01em;
-}
-.sail__body { padding-top: 1.15rem; }
-.sail__head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
-.sail__title {
-  font-family: var(--serif); font-weight: 400; font-size: clamp(1.7rem, 2.6vw, 2.2rem);
-  line-height: 1.1; letter-spacing: -0.015em;
-  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.25em;
-  text-decoration-color: transparent; transition: text-decoration-color 0.3s;
-}
-.sail:hover .sail__title, .sail:focus-visible .sail__title { text-decoration-color: currentColor; }
-.sail__go { font-size: 1.25rem; opacity: 0; transform: translateX(-8px); transition: opacity 0.25s, transform 0.3s var(--ease); }
-.sail:hover .sail__go, .sail:focus-visible .sail__go { opacity: 1; transform: none; }
-.sail__where { margin-top: 0.15rem; color: var(--ink-2); }
-
-.sail__facts {
-  display: grid; grid-template-columns: 1.4fr 1.1fr 0.9fr; gap: 1rem;
-  margin-top: 1.1rem; padding-top: 0.95rem; border-top: 1px solid var(--rule);
-}
-.sail__facts dt { margin-bottom: 0.15rem; }
-.sail__facts dd { font-size: 0.9375rem; line-height: 1.35; }
-.sail__skipper { display: inline-flex; align-items: center; gap: 0.4rem; }
-
-@media (max-width: 52rem) {
-  .sail, .sail--wide { grid-column: 1 / -1; }
-  .sail .photo__frame, .sail--wide .photo__frame { --ratio: 4 / 3; }
-  .sail__facts { grid-template-columns: 1fr 1fr; }
-  .sail__facts > div:first-child { grid-column: 1 / -1; }
-}
-
-/* 11. Profile -------------------------------------------------------------- */
-.profile { display: grid; grid-template-columns: 5fr 7fr; background: var(--paper); color: var(--navy); }
-.profile__photo { aspect-ratio: auto; min-height: 100%; --pos: 50% 22%; --ph: #b9c7cf; --ph-ink: rgba(14, 34, 56, 0.65); }
-.profile__body { display: grid; gap: 1.5rem; align-content: start; padding: clamp(1.5rem, 3vw, 2.75rem); }
-
-.profile__verified { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.8125rem; font-weight: 500; margin-bottom: 0.9rem; }
-.profile__name { font-family: var(--serif); font-weight: 350; font-size: clamp(2.3rem, 3.8vw, 3.4rem); line-height: 1; letter-spacing: -0.025em; }
-.profile__loc { margin-top: 0.4rem; color: var(--muted); }
-.profile__bio { color: var(--ink-2); max-width: 30rem; font-size: 1.0625rem; line-height: 1.5; }
-
-.tags { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; }
-.tags li:not(:last-child)::after { content: "·"; margin-left: 0.6rem; color: var(--muted); }
-
-.profile__stats { display: grid; grid-template-columns: 1fr 1fr; border-block: 1px solid var(--rule); }
-.profile__stats > div { display: flex; flex-direction: column-reverse; padding-block: 1.1rem; }
-.profile__stats > div + div { padding-left: 1.5rem; border-left: 1px solid var(--rule); }
-.profile__stats dd { font-family: var(--serif); font-weight: 300; font-size: clamp(2.6rem, 4vw, 3.6rem); line-height: 1; letter-spacing: -0.03em; }
-.profile__stats dt { margin-top: 0.4rem; }
-
-.profile__details { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem 1.5rem; }
-.profile__details > div:first-child { grid-column: 1 / -1; }
-.profile__details dt { margin-bottom: 0.2rem; }
-.profile__details dd { font-size: 0.9875rem; }
-
-.profile__with { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.avatars { display: flex; }
-.avatars li {
-  width: 2.6rem; aspect-ratio: 1; margin-left: -0.55rem;
-  display: grid; place-items: center;
-  border: 2px solid var(--paper); border-radius: 50%;
-  background: var(--sand); color: var(--navy);
-  font-size: 0.75rem; font-weight: 500; letter-spacing: 0.04em;
-}
-.avatars li:first-child { margin-left: 0; }
-.avatars li:nth-child(2) { background: #d4dde2; }
-.avatars li:nth-child(3) { background: #e3d6bd; }
-.avatars li:nth-child(4) { background: #c5d1d8; }
-.avatars li:nth-child(5) { background: #ddd3c2; }
-.avatars li.more { background: var(--paper); border-color: var(--rule); color: var(--muted); }
-
-@media (max-width: 52rem) {
-  .profile { grid-template-columns: 1fr; }
-  .profile__photo { aspect-ratio: 1 / 1; min-height: 0; }
-}
-
-/* 12. Band ----------------------------------------------------------------- */
-.band { background: var(--navy); color: var(--cream); }
-.band .eyebrow { color: rgba(245, 240, 228, 0.65); }
-.band__grid {
-  display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 2.5rem; row-gap: 3rem; align-items: center;
-}
-.band__text { grid-column: 1 / span 4; display: grid; gap: 1.5rem; justify-items: start; }
-.band__text .lede { color: rgba(245, 240, 228, 0.85); }
-.band__profile { grid-column: 6 / -1; }
-.band__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem; }
-
-@media (max-width: 64rem) {
-  .band__text, .band__profile { grid-column: 1 / -1; }
-}
-
 /* Simple text pages (stubs) */
 .page-intro { padding-block: clamp(3rem, 7vw, 6rem); max-width: 46rem; display: grid; gap: 1.5rem; justify-items: start; }
 .page-intro .lede { color: var(--ink-2); }
-
-/* Sailing profile page (profile.html) -------------------------------------- */
-.sample-note { border-bottom: 1px solid var(--rule); }
-.sample-note__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 2rem; padding-block: 0.85rem; font-size: 0.8125rem; }
-.sample-note p { color: var(--muted); }
-.sample-note strong { color: var(--navy); font-weight: 500; }
-.link-back { text-decoration: none; font-weight: 500; }
-.link-back:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-.sailor { padding-block: clamp(2rem, 5vw, 4rem) clamp(2.5rem, 5vw, 4.5rem); }
-.sailor__grid { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: clamp(1.5rem, 3vw, 3rem); row-gap: 2rem; }
-.sailor__photo { grid-column: 1 / span 5; aspect-ratio: auto; min-height: 34rem; --ph: #b9c7cf; --ph-ink: rgba(14, 34, 56, 0.65); --pos: 50% 22%; }
-.sailor__main { grid-column: 7 / -1; display: flex; flex-direction: column; justify-content: space-between; gap: 2.5rem; }
-.sailor__meta { display: flex; justify-content: space-between; gap: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--navy); }
-.sailor__name { font-family: var(--serif); font-weight: 350; font-size: clamp(3.4rem, 7.6vw, 7rem); line-height: 0.92; letter-spacing: -0.035em; }
-.sailor__name span { display: block; }
-.sailor__area { margin-top: 1.1rem; font-size: 1.0625rem; color: var(--ink-2); }
-.verify { display: flex; align-items: flex-start; gap: 0.6rem; margin-top: 1.1rem; font-size: 0.9375rem; line-height: 1.45; }
-.verify .verified { margin-top: 0.2rem; }
-.verify strong { font-weight: 500; }
-.verify small { display: block; color: var(--muted); font-size: 0.8125rem; }
-.sailor__bio { margin-top: 1.5rem; max-width: 32rem; font-size: 1.125rem; line-height: 1.55; color: var(--ink-2); }
-.sailor .profile__stats { margin-top: 2rem; }
-.sailor__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 1.75rem; }
-
-.band-photo .photo__frame { --ratio: 21 / 9; --scrim: 0.05; }
-
-.dossier { padding-bottom: var(--section); }
-.dossier__row {
-  display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 2rem; row-gap: 1.25rem;
-  padding-block: clamp(2rem, 4vw, 3rem); border-top: 1px solid var(--navy);
-}
-.dossier__head { grid-column: 1 / span 3; }
-.dossier__title { font-family: var(--serif); font-weight: 350; font-size: clamp(1.6rem, 2.4vw, 2.1rem); line-height: 1.1; letter-spacing: -0.015em; }
-.dossier__body { grid-column: 4 / -1; }
-.dossier__note { margin-bottom: 1rem; }
-
-.lines { --cols: minmax(9rem, 0.9fr) 2fr; border-top: 1px solid var(--rule); }
-.lines--boats { --cols: minmax(9rem, 1fr) 1.6fr auto; }
-.lines--history { --cols: 5rem 1.6fr 1fr; }
-.lines li { display: grid; grid-template-columns: var(--cols); gap: 0.25rem 2rem; align-items: baseline; padding-block: 1.15rem; border-bottom: 1px solid var(--rule); }
-.lines__name { font-family: var(--serif); font-size: 1.45rem; line-height: 1.15; letter-spacing: -0.01em; }
-.lines__meta { color: var(--ink-2); }
-.lines__aside { color: var(--muted); font-size: 0.9375rem; }
-.lines--boats .lines__aside { text-align: right; }
-.lines__date { font-size: 0.9375rem; font-weight: 500; font-variant-numeric: tabular-nums; }
-
-.mates-head { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 2rem; row-gap: 1rem; align-items: end; }
-.mates-head h2 { grid-column: 1 / span 7; }
-.mates-head .lede { grid-column: 9 / -1; color: rgba(245, 240, 228, 0.85); }
-.mates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5rem clamp(1.5rem, 3vw, 3rem); margin-top: clamp(2.5rem, 5vw, 4rem); }
-.mate { display: grid; grid-template-columns: auto 1fr; gap: 1.1rem; align-items: center; padding-top: 1.4rem; border-top: 1px solid rgba(245, 240, 228, 0.28); }
-.mate__avatar {
-  width: 3.75rem; aspect-ratio: 1; display: grid; place-items: center;
-  border-radius: 50%; background: var(--sand); color: var(--navy);
-  font-size: 0.9375rem; font-weight: 500; letter-spacing: 0.04em;
-}
-.mate:nth-child(2) .mate__avatar { background: #c5d1d8; }
-.mate:nth-child(3) .mate__avatar { background: #e3d6bd; }
-.mate:nth-child(4) .mate__avatar { background: #d4dde2; }
-.mate:nth-child(5) .mate__avatar { background: #ddd3c2; }
-.mate:nth-child(6) .mate__avatar { background: #b9c7cf; }
-.mate__name { display: flex; align-items: center; gap: 0.45rem; font-family: var(--serif); font-size: 1.5rem; line-height: 1.1; letter-spacing: -0.01em; }
-.mate__meta { margin-top: 0.2rem; font-size: 0.875rem; color: rgba(245, 240, 228, 0.72); }
-.mates-more { margin-top: 2rem; font-size: 0.9375rem; color: rgba(245, 240, 228, 0.72); }
-.band .verified path { stroke: var(--navy); }
-
-@media (max-width: 64rem) {
-  .sailor__photo, .sailor__main { grid-column: 1 / -1; }
-  .sailor__photo { min-height: 0; aspect-ratio: auto; height: min(26rem, 92vw); }
-  .mates { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 52rem) {
-  .dossier__head, .dossier__body { grid-column: 1 / -1; }
-  .lines, .lines--boats, .lines--history { --cols: 1fr; }
-  .lines--boats .lines__aside { text-align: left; }
-  .lines li { gap: 0.2rem; }
-  .mates-head h2, .mates-head .lede { grid-column: 1 / -1; }
-  .band-photo .photo__frame { --ratio: 4 / 3; }
-}
-@media (max-width: 34rem) { .mates { grid-template-columns: 1fr; } }
 
 /* Photo credits list */
 .credits { display: grid; gap: 1.25rem; margin-top: 1rem; width: 100%; }

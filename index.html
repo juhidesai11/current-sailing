@@ -5,87 +5,83 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CURRENT — More ways to get on the water</title>
   <meta name="description" content="Find people to sail with, coaching to learn from, and boats to get you on the water, all connected through one sailing profile.">
-  <meta name="theme-color" content="#0e2238">
+  <meta name="theme-color" content="#0a2540">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="marine.css">
 </head>
-<body data-page="home">
+<body data-page="landing" data-theme="marine">
 
   <header class="site-header" data-component="header"></header>
 
   <main id="main">
 
-    <!-- Hero: images/hero-bay-sailing.jpg -->
-    <section class="hero">
-      <div class="photo__frame hero__photo" style="--pos:62% 60%">
+    <!-- Hero: images/landing-hero-golden-gate-sailing-crew.jpg. The header sits on top of it. -->
+    <section class="land-hero">
+      <div class="photo__frame">
         <div class="photo__media">
-          <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/hero-bay-sailing.jpg</span></div>
-          <img src="images/hero-bay-sailing.jpg" alt="A SailGP catamaran foiling on San Francisco Bay with the Marin headlands behind" decoding="async" onerror="this.hidden=true">
+          <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/landing-hero-golden-gate-sailing-crew.jpg</span></div>
+          <img src="images/landing-hero-golden-gate-sailing-crew.jpg" alt="A sailing crew aboard a boat heeling through the waves of San Francisco Bay, with the Golden Gate Bridge at sunset behind" decoding="async" onerror="this.hidden=true">
         </div>
         <div class="photo__scrim"></div>
       </div>
-
-      <div class="container hero__inner">
-        <h1 class="hero__title display-1 rise">More ways to get on the <em>water.</em></h1>
-        <div class="hero__aside rise" style="--i:2">
-          <p class="lede">Find people to sail with, coaching to learn from, and boats to get you on the water, all connected through one sailing profile.</p>
-          <div class="hero__actions">
-            <a class="btn btn--light" href="find-a-sail.html">Find a sail</a>
-            <a class="btn btn--ghost-light" href="create-profile.html">Create your sailing profile</a>
-          </div>
-        </div>
+      <div class="container land-hero__inner">
+        <h1 class="land-hero__title"><span class="land-hero__brand">Current</span> <span class="land-hero__tagline">More ways to get on the water.</span></h1>
+        <p class="land-hero__lede">Find people to sail with, learn from, and get on the water.</p>
+        <a class="btn btn--light btn--lg" href="find-a-sail.html">Find a sail <span aria-hidden="true">→</span></a>
       </div>
     </section>
 
     <!-- People / Skills / Boats -->
-    <section class="section section--flush-top" aria-label="People, skills and boats">
+    <section class="land-ways" aria-label="People, skills and boats">
       <div class="container">
         <div class="tiles">
 
           <a class="tile tile--people" href="find-a-sail.html">
-            <div class="photo__frame" style="--ph:#1d3a57; --pos:50% 72%">
+            <div class="photo__frame" style="--ph:#1d3a57; --pos:22% 40%">
               <div class="photo__media">
-                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/people-crew-racing.jpg</span></div>
-                <img src="images/people-crew-racing.jpg" alt="The Spain SailGP crew aboard their boat on San Francisco Bay" loading="lazy" decoding="async" onerror="this.hidden=true">
+                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/landing-people-j24-crew.jpg</span></div>
+                <img src="images/landing-people-j24-crew.jpg" alt="Crews hiking out on two J/24 keelboats racing close together" loading="lazy" decoding="async" onerror="this.hidden=true">
               </div>
               <div class="photo__scrim"></div>
             </div>
+            <span class="tile__tag tile__tag--live"><i aria-hidden="true"></i>Live</span>
             <div class="tile__text">
               <h2 class="display-3">People</h2>
-              <p class="tile__line">Find crew, skippers and sailing opportunities.</p>
-              <span class="tile__more">Browse open sails <span>→</span></span>
+              <p class="tile__line">Find sailors, skippers and opportunities to sail.</p>
+              <span class="tile__more">Find a sail <span aria-hidden="true">→</span></span>
             </div>
           </a>
 
           <div class="tile tile--skills">
-            <div class="photo__frame" style="--ph:#3f6078">
+            <div class="photo__frame" style="--ph:#3f6078; --pos:50% 55%">
               <div class="photo__media">
-                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/skills-instructor-coaching.jpg</span></div>
-                <img src="images/skills-instructor-coaching.jpg" alt="A Sunfish dinghy sailing with an instructor and students" loading="lazy" decoding="async" onerror="this.hidden=true">
+                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/landing-skills-sailing-lesson.jpg</span></div>
+                <img src="images/landing-skills-sailing-lesson.jpg" alt="Students in small numbered sailing dinghies during a lesson" loading="lazy" decoding="async" onerror="this.hidden=true">
               </div>
               <div class="photo__scrim"></div>
             </div>
-            <span class="tile__later">Coming later</span>
+            <span class="tile__tag">Coming later</span>
             <div class="tile__text">
               <h2 class="display-3">Skills</h2>
-              <p class="tile__line">Find instructors and coaching.</p>
+              <p class="tile__line">Find qualified coaching and instruction.</p>
             </div>
           </div>
 
           <div class="tile tile--boats">
-            <div class="photo__frame" style="--ph:#5b7d92">
+            <div class="photo__frame" style="--ph:#5b7d92; --pos:50% 60%">
               <div class="photo__media">
-                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/boats-marina-access.jpg</span></div>
-                <img src="images/boats-marina-access.jpg" alt="Sailboats moored in a California marina under a blue sky" loading="lazy" decoding="async" onerror="this.hidden=true">
+                <div class="photo__ph" aria-hidden="true"><span>Photo</span><span>images/landing-boats-club-dock.jpg</span></div>
+                <img src="images/landing-boats-club-dock.jpg" alt="Covered club boats tied up along a dock" loading="lazy" decoding="async" onerror="this.hidden=true">
               </div>
               <div class="photo__scrim"></div>
             </div>
-            <span class="tile__later">Coming later</span>
+            <span class="tile__tag">Coming later</span>
             <div class="tile__text">
               <h2 class="display-3">Boats</h2>
-              <p class="tile__line">Find boat access and rentals.</p>
+              <p class="tile__line">Find ways to access boats without owning one.</p>
             </div>
           </div>
 
@@ -93,33 +89,14 @@
       </div>
     </section>
 
-    <!-- Find a sail -->
-    <section class="section" id="open-sails">
+    <!-- A taste of Find a sail -->
+    <section class="land-sails" aria-labelledby="week">
       <div class="container">
-        <header class="section__head">
-          <p class="eyebrow">Find a sail</p>
-          <h2 class="display-2">This week on the Bay.</h2>
-          <p class="section__aside"><a class="link-arrow" href="find-a-sail.html">See all open sails <span>→</span></a></p>
+        <header class="land-sails__head">
+          <h2 id="week">This week on the Bay.</h2>
+          <a class="link-arrow" href="find-a-sail.html">Explore sails <span aria-hidden="true">→</span></a>
         </header>
-        <div class="sails" data-sails data-limit="4"></div>
-      </div>
-    </section>
-
-    <!-- Sailing profile -->
-    <section class="section band" id="profile">
-      <div class="container band__grid">
-        <div class="band__text">
-          <p class="eyebrow">Your sailing profile</p>
-          <h2 class="display-2">Your sailing history, in one link.</h2>
-          <p class="lede">Send it to a skipper, post it on a crew board, or drop it in the group chat.</p>
-          <div class="band__actions">
-            <a class="btn btn--light" href="create-profile.html">Create your profile</a>
-            <a class="btn btn--ghost-light" href="profile.html">View profile</a>
-          </div>
-        </div>
-        <div class="band__profile">
-          <article class="profile" data-profile aria-label="Sailing profile"></article>
-        </div>
+        <div class="mini-sails" data-landing-sails></div>
       </div>
     </section>
 
@@ -129,5 +106,6 @@
 
   <script src="data.js"></script>
   <script src="script.js"></script>
+  <script src="sails.js"></script>
 </body>
 </html>
