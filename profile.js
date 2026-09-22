@@ -13,7 +13,10 @@
   const data = window.CURRENT_DATA;
   const { esc, verifiedTick, avatar } = window.CURRENT_UI;
   const slug = new URLSearchParams(location.search).get("p") || data.currentUser;
-  const p = data.profiles[slug];
+  let p = data.profiles[slug];
+  /* Your own profile is the one the crew-request loop (loop.js) can change:
+     confirming a sail adds to your confirmed sails, recent sailing and sailed-with. */
+  if (p && p.slug === data.currentUser && window.CURRENT_LOOP) p = window.CURRENT_LOOP.overlayMe(p);
 
   if (!p) {
     root.innerHTML = `
@@ -66,13 +69,26 @@
           </dl>
 
           <div class="pf-actions">
-            <button class="btn btn--ghost" type="button" data-copy-link>Share profile</button>
+            <button class="btn btn--ghost" type="button" data-share>Share profile</button>
             ${isMine ? `<a class="btn btn--ghost" href="create-profile.html">Edit profile</a>` : ""}
-            <span class="small" role="status" aria-live="polite" data-copy-status></span>
           </div>
         </div>
       </div>
     </section>
+
+    <dialog class="modal" aria-labelledby="share-title">
+      <div class="modal__panel">
+        <p class="label">Share profile</p>
+        <h2 class="modal__title" id="share-title">Share ${esc(p.name.split(" ")[0])}’s profile</h2>
+        <p class="modal__lede">Send this link anywhere sailors look for crew — a text, a club board, a crew list.</p>
+        <p class="share-url">current.sailing/${esc(p.slug)}</p>
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" data-share-close>Close</button>
+          <button class="btn" type="button" data-share-copy>Copy profile link</button>
+        </div>
+        <p class="small" role="status" aria-live="polite" data-share-status></p>
+      </div>
+    </dialog>
 
     <!-- WHAT KIND OF SAILOR? CAN I TRUST THE CONTEXT? -->
     <section class="pf-section" aria-label="Experience and credentials">
@@ -141,7 +157,7 @@
         <div class="pf-feedback">
           ${p.feedback.map((f) => {
             const o = person(f.from);
-            const n = data.together(p.slug, o.slug);
+            const n = data.together(p.slug, o.slug) + (isMine && window.CURRENT_LOOP ? window.CURRENT_LOOP.extraTogether(o.slug) : 0);
             return `
               <article class="fb">
                 ${avatar(o, "avatar--fb")}
@@ -174,4 +190,19 @@
         </ul>
       </div>
     </section>`;
+
+  /* Share profile: a conceptual public link, since the prototype has no real hosting for it. */
+  const shareModal = root.querySelector(".modal");
+  const shareStatus = shareModal.querySelector("[data-share-status]");
+  root.querySelector("[data-share]").addEventListener("click", () => {
+    shareStatus.textContent = "";
+    shareModal.showModal();
+  });
+  shareModal.querySelector("[data-share-close]").addEventListener("click", () => shareModal.close());
+  shareModal.addEventListener("click", (e) => { if (e.target === shareModal) shareModal.close(); });
+  shareModal.querySelector("[data-share-copy]").addEventListener("click", async () => {
+    const url = shareModal.querySelector(".share-url").textContent;
+    try { await navigator.clipboard.writeText(url); } catch (e) { /* prototype link only; show the copied state regardless */ }
+    shareStatus.textContent = "Profile link copied ✓";
+  });
 })();

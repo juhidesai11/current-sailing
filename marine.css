@@ -6,6 +6,7 @@
    opt in (currently the homepage) are untouched.
    1. Tokens & base   2. Header / footer / buttons   3. Profile page overrides
    4. Find a sail   5. Map   6. Sail detail   7. Landing page
+   8. Coming-later pages   9. Sailing profile   10. The crew-request loop
    ========================================================================== */
 
 /* 1. Tokens & base --------------------------------------------------------- */
@@ -88,6 +89,12 @@ body[data-theme="marine"] {
   border: 1px solid var(--rule-strong); border-radius: 4px; cursor: pointer;
 }
 .field select:hover { border-color: var(--navy); }
+.field textarea {
+  width: 100%; padding: 0.75rem 0.9rem;
+  font: inherit; font-size: 0.9375rem; color: var(--navy);
+  background: #fff; border: 1px solid var(--rule-strong); border-radius: 4px; resize: vertical;
+}
+.field textarea:hover { border-color: var(--navy); }
 .finder__submit { min-height: 3rem; padding-inline: 1.75rem; }
 
 .finder__row2 { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; }
@@ -243,6 +250,8 @@ body[data-theme="marine"] {
 .detail__stats dt { margin-top: 0.2rem; font-size: 0.75rem; color: var(--muted); }
 .detail__request { width: 100%; margin-top: 0.75rem; }
 .detail__request[disabled] { background: var(--sky-soft); border-color: var(--sky-soft); color: var(--sky); font-weight: 700; cursor: default; }
+.detail__request--declined[disabled] { background: var(--sand); border-color: var(--sand); color: var(--muted); }
+[data-request-status] { margin-top: 0.6rem; }
 
 /* Circular people: initials until the photo loads, then the photo covers them */
 .avatar {
@@ -288,6 +297,7 @@ body[data-theme="marine"] {
 .modal__me-meta { margin-top: 0.15rem; font-size: 0.8125rem; color: var(--muted); line-height: 1.45; }
 .modal__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.4rem; }
 .modal__actions .btn { flex: 1; min-height: 3rem; }
+.share-url { margin-top: 1.1rem; padding: 0.85rem 1rem; background: var(--sky-soft); border-radius: 4px; font-size: 0.9375rem; font-weight: 700; color: var(--navy); word-break: break-all; }
 
 @media (max-width: 56rem) {
   .detail__grid { display: flex; flex-direction: column; align-items: stretch; gap: 1.5rem; }
@@ -482,3 +492,22 @@ a.pf-mate:hover .pf-mate__name { text-decoration: underline; text-underline-offs
   .pf-recent li > strong, .pf-recent__meta { grid-column: 2; }
   .pf-recent__meta { display: flex; flex-wrap: wrap; gap: 0 0.7rem; color: var(--ink-2); }
 }
+
+/* 10. The crew-request loop: crew-request.html and confirm-sail.html ------------
+   Both are plain, compact pages built from the same pieces as the sail detail page
+   (.detail__title, .skipper-card, .field, .btn), not a new visual language. */
+.cr-shell { background: var(--cream); padding-block: clamp(1.5rem, 4vw, 2.5rem) clamp(3rem, 7vw, 5rem); min-height: 55svh; }
+.cr-page { max-width: 34rem; }
+.cr-pov {
+  display: inline-block; margin-bottom: 1rem; padding: 0.35rem 0.7rem;
+  background: var(--sky-soft); color: var(--sky); border-radius: 4px;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em;
+}
+.cr-lede { margin-top: 1.5rem; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.015em; line-height: 1.3; }
+.cr-line { margin-top: 0.5rem; font-size: 0.9375rem; }
+.cr-note { margin-top: 1rem; font-size: 1.0625rem; font-style: italic; color: var(--ink-2); }
+.cr-preview { margin-top: 1.5rem; }
+.cr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.85rem; margin-top: 1.75rem; }
+.cr-question { margin-top: 1.75rem; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; }
+.cr-page .field { margin-top: 1.1rem; max-width: 26rem; }
+.choice-row { display: flex; gap: 0.75rem; margin-top: 1.1rem; }

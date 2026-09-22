@@ -18,7 +18,8 @@
     </div>`;
 
   /* Header & footer ------------------------------------------------------ */
-  const navPage = page === "sail" || page === "profile" ? "find" : page; /* sails and profiles are reached from Find a sail */
+  const loopPages = ["sail", "profile", "crew-request", "confirm-sail"];
+  const navPage = loopPages.includes(page) ? "find" : page; /* the whole crew-request loop is reached from Find a sail */
   const link = (href, label, id) =>
     `<a href="${href}"${navPage === id ? ' aria-current="page"' : ""}>${label}</a>`;
 

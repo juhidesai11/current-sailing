@@ -204,6 +204,32 @@ const PEOPLE = [
       { date: "AUG 30", title: "Sunday Race", boat: "Melges 24", place: "St. Francis Yacht Club", role: "Pit" },
     ],
   },
+  /* ---- Juhi Desai: the prototype's own "you", the sailor signed in on this browser ----
+     No stock photo is used for this one profile — it stands in for whoever is trying the
+     prototype, and putting someone else's face under that name would be worse than initials.
+     Her confirmedSails/recent/sailedWith below are her starting history; the crew-request
+     loop (loop.js) adds to them as you request, get accepted and confirm a sail. */
+  {
+    slug: "juhi-desai", name: "Juhi Desai", verification: VERIFIED,
+    photo: "images/skipper-juhi-desai.jpg", heroPhoto: "images/profile-juhi-desai.jpg",
+    sailingArea: "San Francisco Bay Area", sailingSince: 2023,
+    bio: "Newer to keelboat racing, building sea time as a trimmer and learning to helm.",
+    types: ["Racing", "Keelboats"],
+    roles: [
+      { name: "Trimmer", note: "Jib on Friday nights. Comfortable up to 15 knots." },
+      { name: "Helm", note: "Learning starts and mark roundings on a friend's J/105." },
+    ],
+    boats: [{ name: "Express 27", sails: 9 }, { name: "J/105", sails: 5 }],
+    credentials: [{ issuer: "US Sailing", name: "Basic Keelboat", number: "601233", year: 2023 }],
+    confirmedSails: 14, repeatConnections: 3,
+    feedback: [
+      { from: "tom-reyes", sail: "Friday Night Race", boat: "Express 27", quote: "Solid on the jib and easy to brief. Always ready before the start." },
+    ],
+    recent: [
+      { date: "AUG 21", title: "Friday Night Race", boat: "Express 27", place: "Berkeley Marina", role: "Trimmer" },
+      { date: "JUL 24", title: "Friday Night Race", boat: "Express 27", place: "Berkeley Marina", role: "Trimmer" },
+    ],
+  },
 ];
 
 /* COMMUNITY HISTORY: how many confirmed sails each pair has shared. Symmetric, so a count
@@ -215,6 +241,7 @@ const TOGETHER = {
   "ana-ferreira|dev-patel": 5, "ana-ferreira|jules-moreau": 3, "ana-ferreira|ingrid-larsen": 2,
   "chris-park|jules-moreau": 4, "chris-park|ingrid-larsen": 3, "chris-park|dev-patel": 2,
   "dev-patel|jules-moreau": 3, "ingrid-larsen|jules-moreau": 2, "dev-patel|ingrid-larsen": 2,
+  "juhi-desai|tom-reyes": 2,
 };
 const together = (a, b) => TOGETHER[[a, b].sort().join("|")] || 0;
 
@@ -282,4 +309,4 @@ window.CURRENT_DATA.sails = [
 ];
 
 /* The sailor the prototype treats as "you" when requesting to crew. */
-window.CURRENT_DATA.currentUser = "maya-ellison";
+window.CURRENT_DATA.currentUser = "juhi-desai";

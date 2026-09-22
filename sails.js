@@ -208,13 +208,11 @@
         </div></div>`;
     } else {
       const p = skipperOf(s);
-      const me = data.profiles[data.currentUser];
+      const loop = window.CURRENT_LOOP;
+      const me = loop ? loop.overlayMe(data.profiles[data.currentUser]) : data.profiles[data.currentUser];
       const first = p.name.split(" ")[0];
       const dateLong = s.date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
       const when = s.multiDay ? `Departs ${dateLong} · ${clock(s.date)}` : `${dateLong} · ${clock(s.date)}`;
-      const REQ = "current.requests";
-      const readReq = () => { try { return JSON.parse(sessionStorage.getItem(REQ)) || []; } catch (e) { return []; } };
-      const writeReq = (v) => { try { sessionStorage.setItem(REQ, JSON.stringify(v)); } catch (e) { /* ignore */ } };
       document.title = `${s.title} — Find a sail — CURRENT`;
 
       /* Reusable skipper preview: filled entirely from the skipper's profile data. */
@@ -282,6 +280,7 @@
                   <div><dd>${s.positions.map(esc).join(" · ")}</dd><dt>Positions</dt></div>
                 </dl>
                 <button class="btn btn--lg detail__request" type="button" data-request></button>
+                <p class="small" data-request-status hidden></p>
               </div>
               ${skipperPreview(p)}
             </div>
@@ -291,9 +290,10 @@
 
         <dialog class="modal" aria-labelledby="modal-title">
           <div class="modal__panel" data-state="form">
-            <p class="label">Request to join</p>
+            <p class="label">Request to crew</p>
             <h2 class="modal__title" id="modal-title">${esc(s.title)}</h2>
-            <p class="modal__lede">Your CURRENT profile will be shared with ${esc(first)} so they can see your sailing experience and history.</p>
+            <p class="small">${esc(s.boat)} · ${esc(s.location)} · ${esc(when)}</p>
+            <p class="modal__lede">${esc(first)} will receive your CURRENT profile with this request.</p>
             <div class="modal__me">
               ${avatar(me, "avatar--sm")}
               <div>
@@ -302,6 +302,10 @@
                 <p class="modal__me-meta">Roles: ${me.roles.map((r) => esc(r.name)).join(", ")}</p>
               </div>
             </div>
+            <label class="field">
+              <span>Add a note (optional)</span>
+              <textarea data-note rows="3" placeholder="Anything you want ${esc(first)} to know?"></textarea>
+            </label>
             <div class="modal__actions">
               <a class="btn btn--ghost" href="profile.html?p=${esc(me.slug)}" target="_blank" rel="noopener">Preview my profile</a>
               <button class="btn" type="button" data-send autofocus>Send request</button>
@@ -309,26 +313,55 @@
           </div>
           <div class="modal__panel" data-state="sent" hidden>
             <h2 class="modal__title" id="modal-sent">Request sent</h2>
-            <p class="modal__lede">Prototype interaction only. No real request has been sent.</p>
-            <div class="modal__actions"><button class="btn" type="button" data-done>Done</button></div>
+            <p class="modal__lede">${esc(first)} can now review your CURRENT profile.</p>
+            <div class="modal__actions">
+              <a class="btn btn--ghost" href="crew-request.html?id=${esc(s.id)}">View request</a>
+              <button class="btn" type="button" data-done>Done</button>
+            </div>
           </div>
         </dialog>`;
 
-      /* Request to crew interaction */
+      /* Request to crew interaction. State lives in loop.js (localStorage), so it
+         survives navigating to the crew-request and confirm-sail screens and back. */
       const modal = detailEl.querySelector(".modal");
       const reqBtn = detailEl.querySelector("[data-request]");
+      const statusEl = detailEl.querySelector("[data-request-status]");
       const showState = (name) => modal.querySelectorAll("[data-state]").forEach((el) => { el.hidden = el.dataset.state !== name; });
-      const paintButton = () => {
-        const sent = readReq().includes(s.id);
-        reqBtn.innerHTML = sent ? "Request sent" : `Request to crew <span aria-hidden="true">→</span>`;
-        reqBtn.disabled = sent;
+
+      const paintRequestUI = () => {
+        const st = loop ? loop.get(s.id) : null;
+        reqBtn.classList.remove("detail__request--declined");
+        if (!st || !st.requested) {
+          reqBtn.innerHTML = `Request to crew <span aria-hidden="true">→</span>`;
+          reqBtn.disabled = false;
+          statusEl.hidden = true;
+          return;
+        }
+        reqBtn.disabled = true;
+        if (st.confirmed) {
+          reqBtn.textContent = "Sail confirmed ✓";
+          statusEl.innerHTML = `Confirmed as sailed. <a class="link-arrow" href="profile.html?p=${esc(data.currentUser)}">View your profile <span>→</span></a>`;
+        } else if (st.accepted === true) {
+          reqBtn.textContent = "Request accepted ✓";
+          statusEl.innerHTML = `${esc(first)} accepted your request. <a class="link-arrow" href="crew-request.html?id=${esc(s.id)}">View request <span>→</span></a>`;
+        } else if (st.accepted === false) {
+          reqBtn.textContent = "Request declined";
+          reqBtn.classList.add("detail__request--declined");
+          statusEl.innerHTML = `${esc(first)} declined this request.`;
+        } else {
+          reqBtn.textContent = "Request sent";
+          statusEl.innerHTML = `Waiting for ${esc(first)} to respond. <a class="link-arrow" href="crew-request.html?id=${esc(s.id)}">View request <span>→</span></a>`;
+        }
+        statusEl.hidden = false;
       };
-      paintButton();
+      paintRequestUI();
+
       reqBtn.addEventListener("click", () => { showState("form"); modal.showModal(); });
       modal.querySelector("[data-send]").addEventListener("click", () => {
-        writeReq([...new Set([...readReq(), s.id])]);
+        const note = modal.querySelector("[data-note]").value.trim();
+        if (loop) loop.request(s.id, note);
         showState("sent");
-        paintButton();
+        paintRequestUI();
         modal.querySelector("[data-done]").focus();
       });
       modal.querySelector("[data-done]").addEventListener("click", () => modal.close());
