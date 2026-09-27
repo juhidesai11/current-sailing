@@ -7,6 +7,7 @@
    1. Tokens & base   2. Header / footer / buttons   3. Profile page overrides
    4. Find a sail   5. Map   6. Sail detail   7. Landing page
    8. Coming-later pages   9. Sailing profile   10. The crew-request loop
+   11. Create profile
    ========================================================================== */
 
 /* 1. Tokens & base --------------------------------------------------------- */
@@ -95,6 +96,13 @@ body[data-theme="marine"] {
   background: #fff; border: 1px solid var(--rule-strong); border-radius: 4px; resize: vertical;
 }
 .field textarea:hover { border-color: var(--navy); }
+.field input {
+  width: 100%; min-height: 2.85rem; padding: 0.6rem 0.9rem;
+  font: inherit; font-size: 0.9375rem; color: var(--navy);
+  background: #fff; border: 1px solid var(--rule-strong); border-radius: 4px;
+}
+.field input:hover { border-color: var(--navy); }
+.field__count { margin-top: 0.3rem; font-size: 0.75rem; color: var(--muted); text-align: right; }
 .finder__submit { min-height: 3rem; padding-inline: 1.75rem; }
 
 .finder__row2 { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; }
@@ -446,7 +454,9 @@ body[data-theme="marine"] {
 .pf-identity > .src { margin-left: auto; padding-top: 0.2rem; }
 .pf-identity .verified { width: 1.4rem; height: 1.4rem; margin-top: 0.15rem; flex: none; }
 .pf-identity__title { font-weight: 700; color: var(--sky); font-size: 1.0625rem; }
+.pf-identity__title--off { color: var(--muted); }
 .pf-identity__note { margin-top: 0.15rem; font-size: 0.8125rem; line-height: 1.45; max-width: 24rem; }
+.verified--off { display: inline-block; width: 1.4rem; height: 1.4rem; margin-top: 0.15rem; flex: none; border-radius: 50%; border: 1.5px dashed var(--rule-strong); }
 .pf-creds { display: grid; gap: 0.75rem; margin-top: 1.1rem; }
 .pf-cred { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1rem 1.1rem; background: #fff; border: 1px solid var(--rule); border-radius: 6px; font-size: 0.9375rem; }
 .pf-cred__issuer { font-weight: 800; }
@@ -478,6 +488,11 @@ a.pf-mate:hover .pf-mate__name { text-decoration: underline; text-underline-offs
 .pf-recent li { display: grid; grid-template-columns: 6rem minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 0.8fr); gap: 1rem; align-items: baseline; padding-block: 0.9rem; border-bottom: 1px solid var(--rule); font-size: 0.9375rem; }
 .pf-recent__date { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; color: var(--muted); }
 .pf-recent__meta { display: contents; }
+
+/* A brand-new profile with no confirmed sails yet */
+.pf-empty { padding: 1.5rem; background: #fff; border: 1px dashed var(--rule-strong); border-radius: 6px; }
+.pf-empty p { font-size: 1rem; line-height: 1.5; }
+.pf-empty p + p { margin-top: 0.5rem; }
 
 @media (max-width: 52rem) {
   .pf-intro__grid { grid-template-columns: minmax(0, 1fr); }
@@ -511,3 +526,87 @@ a.pf-mate:hover .pf-mate__name { text-decoration: underline; text-underline-offs
 .cr-question { margin-top: 1.75rem; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; }
 .cr-page .field { margin-top: 1.1rem; max-width: 26rem; }
 .choice-row { display: flex; gap: 0.75rem; margin-top: 1.1rem; }
+
+/* 11. Create profile ----------------------------------------------------------
+   A compact, centered onboarding wizard, built entirely from pieces already used
+   elsewhere (.field, .btn, .skipper-card, .pf-sub/.pf-list, avatar). No new visual
+   language — a thin progress bar and a set of toggle buttons are the only additions. */
+.onboard { background: var(--cream); padding-block: clamp(2rem, 5vw, 3.5rem) clamp(3rem, 7vw, 5rem); min-height: 70svh; }
+.onboard__shell { max-width: 34rem; margin-inline: auto; }
+
+.onboard__progress { display: flex; align-items: center; gap: 1rem; margin-bottom: clamp(1.75rem, 4vw, 2.5rem); }
+.onboard__bar { flex: 1; height: 3px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.onboard__bar span { display: block; height: 100%; background: var(--sky); transition: width 0.3s var(--ease); }
+.onboard__step-count { font-size: 0.75rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+
+.onboard__card { background: #fff; border: 1px solid var(--rule); border-radius: 6px; padding: clamp(1.5rem, 4vw, 2.25rem); }
+.onboard__card h1 { margin-top: 0.4rem; font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; }
+.onboard__lede { margin-top: 0.4rem; color: var(--ink-2); font-size: 1rem; }
+.onboard__fields { margin-top: 1.75rem; display: grid; gap: 1.25rem; }
+
+.onboard__nav { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
+.onboard__nav--end { justify-content: flex-end; }
+.onboard__nav .btn { min-width: 7rem; }
+
+/* Photo upload */
+.onboard__photo-row { display: flex; align-items: center; gap: 1.1rem; }
+.onboard__photo {
+  position: relative; width: 5.5rem; aspect-ratio: 1; flex: none;
+  border-radius: 50%; overflow: hidden; background: var(--sky-soft);
+  display: grid; place-items: center; border: 0; padding: 0; font: inherit; cursor: pointer;
+}
+.onboard__photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.onboard__photo span { font-size: 1.75rem; font-weight: 800; color: rgba(10, 37, 64, 0.45); }
+.onboard__photo-action { background: none; border: 0; padding: 0; font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--sky); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Multi-select toggle buttons (sailing types, roles) */
+.toggles { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.toggle {
+  padding: 0.55rem 1rem; font: inherit; font-size: 0.9375rem; font-weight: 600;
+  color: var(--navy); background: #fff; border: 1px solid var(--rule-strong); border-radius: 4px; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.toggle:hover { border-color: var(--navy); }
+.toggle[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+/* Added boats / credentials rows */
+.entry-add { display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap; }
+.entry-add .field { flex: 1; min-width: 10rem; margin: 0; }
+.entry-add .btn { min-height: 2.85rem; }
+.entry-list { margin-top: 1.1rem; display: grid; gap: 0.6rem; }
+.entry-row { display: flex; align-items: center; gap: 0.85rem; padding: 0.7rem 0.9rem; background: var(--cream); border: 1px solid var(--rule); border-radius: 4px; }
+.entry-row__body { flex: 1; min-width: 0; }
+.entry-row__name { font-weight: 700; }
+.entry-row__meta { margin-top: 0.1rem; font-size: 0.8125rem; color: var(--muted); }
+.entry-row select {
+  min-height: 2.5rem; padding: 0.45rem 2.25rem 0.45rem 0.7rem;
+  font: inherit; font-size: 0.875rem; font-weight: 600; color: var(--navy);
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%230a2540' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 0.8rem center / 11px 7px;
+  border: 1px solid var(--rule-strong); border-radius: 4px; cursor: pointer;
+}
+.entry-row__remove {
+  flex: none; width: 1.75rem; height: 1.75rem; display: grid; place-items: center;
+  background: none; border: 1px solid var(--rule-strong); border-radius: 50%;
+  color: var(--muted); font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.entry-row__remove:hover { border-color: var(--navy); color: var(--navy); }
+.entry-empty { padding: 0.5rem 0; color: var(--muted); font-size: 0.9375rem; }
+
+/* Identity step */
+.id-card { padding: 1.25rem 1.4rem; background: #fff; border: 1px solid var(--rule); border-radius: 6px; }
+.id-card__title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.0625rem; }
+.id-card__lede { margin-top: 0.5rem; color: var(--ink-2); font-size: 0.9375rem; line-height: 1.5; }
+.id-card__note { margin-top: 0.9rem; font-size: 0.8125rem; color: var(--muted); }
+.id-card__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.1rem; }
+
+/* Step 6: the review card reuses .skipper-card */
+.onboard-preview { position: relative; }
+.onboard-preview__edit { position: absolute; top: 1.25rem; right: 1.25rem; background: none; border: 0; padding: 0; font: inherit; font-size: 0.8125rem; font-weight: 700; color: var(--sky); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.onboard-preview__bio { margin-top: 1rem; font-size: 0.9375rem; color: var(--ink-2); line-height: 1.5; }
+.onboard-preview .pf-sub { margin-top: 1.25rem; }
+
+@media (max-width: 30rem) {
+  .onboard__nav { flex-direction: column-reverse; align-items: stretch; }
+  .onboard__nav .btn { width: 100%; }
+  .entry-add { flex-direction: column; align-items: stretch; }
+}

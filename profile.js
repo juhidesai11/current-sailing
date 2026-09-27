@@ -39,6 +39,7 @@
   };
   const head = (title, tag) => `<div class="pf-head"><h2>${esc(title)}</h2>${tag}</div>`;
   const times = (n) => (n === 1 ? "once" : `${n} times`);
+  const hasHistory = p.sailedWith.length > 0 || p.feedback.length > 0 || p.recent.length > 0;
 
   document.title = `${p.name} — Sailing profile — CURRENT`;
 
@@ -50,7 +51,7 @@
           <div class="photo__frame" style="--ph:#b9c7cf;--pos:50% 35%">
             <div class="photo__media">
               <span class="pf-ini" aria-hidden="true">${esc(p.name.split(" ").map((w) => w[0]).join(""))}</span>
-              <img src="${esc(p.heroPhoto)}" alt="${esc(p.name)} sailing" decoding="async" onerror="this.hidden=true">
+              ${p.heroPhoto ? `<img src="${esc(p.heroPhoto)}" alt="${esc(p.name)} sailing" decoding="async" onerror="this.hidden=true">` : ""}
             </div>
           </div>
         </figure>
@@ -97,7 +98,7 @@
           ${head("Experience", src.provided)}
           <h3 class="pf-sub">Boats sailed</h3>
           <ul class="pf-list">
-            ${p.boats.map((b) => `<li><span>${esc(b.name)}</span><span class="pf-muted">${b.sails} sails</span></li>`).join("")}
+            ${p.boats.map((b) => `<li><span>${esc(b.name)}</span><span class="pf-muted">${b.sails != null ? `${b.sails} sails` : esc(b.experience)}</span></li>`).join("")}
           </ul>
           <h3 class="pf-sub">Roles</h3>
           <ul class="pf-list pf-roles">
@@ -108,12 +109,12 @@
         <div class="pf-col pf-col--rule">
           ${head("Credentials", "")}
           <div class="pf-identity">
-            ${verifiedTick("Identity verified")}
+            ${p.verification.identity ? verifiedTick("Identity verified") : `<span class="verified verified--off" aria-hidden="true"></span>`}
             <div>
-              <p class="pf-identity__title">Identity verified</p>
+              <p class="pf-identity__title${p.verification.identity ? "" : " pf-identity__title--off"}">${p.verification.identity ? "Identity verified" : "Not verified yet"}</p>
               <p class="pf-muted pf-identity__note">Concept: a third-party identity check, such as ID.me. CURRENT does not store ID documents.</p>
             </div>
-            ${src.verified}
+            ${p.verification.identity ? src.verified : ""}
           </div>
           <div class="pf-creds">
             ${p.credentials.map((c) => `
@@ -121,7 +122,7 @@
                 <div>
                   <p class="pf-cred__issuer">${esc(c.issuer)}</p>
                   <p>${esc(c.name)}</p>
-                  <p class="pf-muted">Credential no. ${esc(c.number)} · ${c.year}</p>
+                  <p class="pf-muted">${c.number ? `Credential no. ${esc(c.number)} · ` : c.detail ? `${esc(c.detail)} · ` : ""}${c.year}</p>
                 </div>
                 <span class="src">Provided by ${esc(first)}</span>
               </div>`).join("")}
@@ -130,6 +131,7 @@
       </div>
     </section>
 
+    ${hasHistory ? `
     <!-- WHO HAVE THEY ACTUALLY SAILED WITH? -->
     <section class="pf-section" aria-labelledby="pf-with">
       <div class="container">
@@ -189,7 +191,20 @@
             </li>`).join("")}
         </ul>
       </div>
-    </section>`;
+    </section>` : `
+    <!-- A brand-new profile has no CURRENT-generated history yet: no fake activity. -->
+    <section class="pf-section pf-section--last" aria-labelledby="pf-recent">
+      <div class="container">
+        <div class="pf-head"><h2 id="pf-recent">Sailing history</h2>${src.community}</div>
+        <div class="pf-empty">
+          ${isMine
+            ? `<p>Your CURRENT history starts when you sail with people through CURRENT.</p>
+               <p class="pf-muted">After a sail, both sailors can confirm that you sailed together.</p>`
+            : `<p>${esc(first)}’s CURRENT history starts when ${esc(first)} sails with people through CURRENT.</p>
+               <p class="pf-muted">After a sail, both sailors can confirm that they sailed together.</p>`}
+        </div>
+      </div>
+    </section>`}`;
 
   /* Share profile: a conceptual public link, since the prototype has no real hosting for it. */
   const shareModal = root.querySelector(".modal");

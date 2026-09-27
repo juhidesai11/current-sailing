@@ -22,9 +22,27 @@ GitHub Pages: Settings → Pages → deploy from the `main` branch, root folder.
 - `crew-request.html?id=<id>` — the skipper's side of a crew request: accept or decline
 - `confirm-sail.html?id=<id>` — the sailor's post-sail confirmation and "would sail again"
 - `profile.html?p=<slug>` — a sailor's CURRENT profile
-- `create-profile.html` — placeholder
+- `create-profile.html` — the 6-step Create profile onboarding wizard
 - `coaching.html`, `boats.html` — “coming later” placeholders
 - `credits.html` — photo credits
+
+## Create profile
+
+A 6-step wizard (basics, how you sail, boats & classes, credentials, identity, review)
+that saves to `localStorage["current.myProfile"]` and becomes "you": `data.js` reads
+that key at load and, if present, injects it into `data.profiles` and points
+`data.currentUser` at it, so `profile.html` renders it with no separate code path from
+the sample sailors. Reopening `create-profile.html` (Edit profile) pre-fills every
+field from that saved record and keeps the same slug, so the share link doesn't change.
+
+A brand-new profile always starts with `confirmedSails: 0`, empty Sailed With and
+Recent Sailing, and no feedback — the onboarding wizard has no field for any of these
+on purpose. Those only grow through the crew-request loop below. A profile page with
+no history yet shows a plain "Sailing history" empty state instead of the usual three
+sections.
+
+The profile photo, if added, is downscaled client-side to a JPEG data URL and stored
+inline in `localStorage` — there's no upload endpoint, so nothing leaves the browser.
 
 ## The crew-request loop
 
@@ -55,7 +73,9 @@ Every photo slot points at a named file in `images/`. If a file is missing, a to
 | `sail-friday-night-race-j24.jpg`, `sail-saturday-morning-sail.jpg`, `sail-sunday-race-crew.jpg`, `sail-monterey-delivery.jpg` | Find a sail cards and sail pages |
 | `skipper-*.jpg` (tom-reyes, maya-ellison, ana-ferreira, chris-park) and `sailor-*.jpg` (dev-patel, ingrid-larsen, jules-moreau) | Sample sailor portraits (4:5): sail page, Find a sail cards and Sailed with. Replace with your own consented photos before any public launch. |
 | `profile-<name>.jpg` (the same seven people) | Wide (7:5) photo at the top of each profile |
-| `skipper-juhi-desai.jpg`, `profile-juhi-desai.jpg` | Juhi Desai — the prototype's own "you". Deliberately left as a placeholder (initials show instead); add a real photo if you want one. |
+| `skipper-juhi-desai.jpg`, `profile-juhi-desai.jpg` | Juhi Desai — the prototype's built-in "you" until someone completes Create profile. Deliberately left as a placeholder (initials show instead); add a real photo if you want one. |
+
+A profile made through Create profile stores its own photo inline (a data URL in `localStorage`, not a file in `images/`), so it isn't listed above.
 
 Each photo is used in one place. The current photos are Creative Commons, public-domain or Unsplash-licensed images, credited on `credits.html`. If you swap one out, update its alt text (in `index.html` or `data.js`) and its credit.
 
@@ -68,3 +88,4 @@ Each photo is used in one place. The current photos are Creative Commons, public
 - `profile.js` — the one sailing-profile template; `profile.html?p=<slug>` renders any sailor from `data.js`
 - `sails.js` — Find a sail, the sail page, and the landing sail previews
 - `loop.js` — the crew-request loop's state (`localStorage`) and the crew-request/confirm-sail pages
+- `create-profile.js` — the Create profile wizard; saves to `localStorage` and hands off to `data.js`

@@ -310,3 +310,14 @@ window.CURRENT_DATA.sails = [
 
 /* The sailor the prototype treats as "you" when requesting to crew. */
 window.CURRENT_DATA.currentUser = "juhi-desai";
+
+/* A profile made through Create profile (create-profile.js) replaces "you". It starts
+   with zero confirmed sails, no sailed-with and no feedback — genuinely new, not
+   pre-populated — and grows only through the crew-request loop (loop.js) from there. */
+try {
+  const mine = JSON.parse(localStorage.getItem("current.myProfile"));
+  if (mine && mine.slug) {
+    window.CURRENT_DATA.profiles[mine.slug] = mine;
+    window.CURRENT_DATA.currentUser = mine.slug;
+  }
+} catch (e) { /* ignore */ }

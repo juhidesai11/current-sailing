@@ -12,19 +12,17 @@
   <link rel="stylesheet" href="marine.css">
 </head>
 <body data-page="create" data-theme="marine">
+
   <header class="site-header" data-component="header"></header>
-  <main id="main">
-    <div class="container">
-      <div class="page-intro">
-        <p class="eyebrow">Coming next</p>
-        <h1 class="display-1">Create your profile</h1>
-        <p class="lede">The profile creation flow will live here.</p>
-        <a class="link-arrow" href="index.html"><span>←</span> Back to home</a>
-      </div>
-    </div>
-  </main>
+
+  <!-- Rendered by create-profile.js. Reopens pre-filled if a profile already
+       exists in localStorage (Edit profile), otherwise starts blank. -->
+  <main id="main" class="onboard" data-create-profile></main>
+
   <footer class="site-footer" data-component="footer"></footer>
+
   <script src="data.js"></script>
   <script src="script.js"></script>
+  <script src="create-profile.js"></script>
 </body>
 </html>
