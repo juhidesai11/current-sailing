@@ -24,11 +24,19 @@
     .map((s, i) => ({ ...s, n: i + 1 }));
 
   const initials = (name) => name.split(" ").map((w) => w[0]).join("");
-  const skipperOf = (s) => data.profiles[s.skipper];
+  /* A real sail carries its already-resolved skipper profile directly (see
+     shapeRealSail below); a demo sail still looks its skipper up by slug. */
+  const skipperOf = (s) => s.skipperProfile || data.profiles[s.skipper];
 
   /* Circular person avatar: initials until the photo loads, then the photo covers them. */
   const avatar = (p, cls = "") =>
     `<span class="avatar ${cls}"><span aria-hidden="true">${esc(initials(p.name))}</span>${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" decoding="async" onerror="this.hidden=true">` : ""}</span>`;
+
+  /* A real sail has no photo asset — show just the existing tonal placeholder
+     (the same one any missing photo file already falls back to) with no <img>,
+     rather than pointing one at a path that was never going to exist. */
+  const photoOrPlaceholder = (photo, alt) =>
+    photo ? photoMedia(photo, alt) : `<div class="photo__media"><div class="photo__ph" aria-hidden="true"><span>Photo</span><span>Not added yet</span></div></div>`;
 
   /* Saved sails (per-browser, optional) ---------------------------------- */
   const KEY = "current.saved";
@@ -36,6 +44,121 @@
     try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; }
   };
   const writeSaved = (ids) => { try { localStorage.setItem(KEY, JSON.stringify(ids)); } catch (e) { /* ignore */ } };
+
+  /* Real, Supabase-backed sails --------------------------------------------
+     Shapes a `sails` row + its skipper's real profile into the exact object
+     shape the demo sails already use, so card()/skipperPreview()/the detail
+     template need no separate code path — same approach as profile.js took
+     for real profiles in Phase 1. Community-trust fields on the skipper stay
+     real (0 / empty / false) on purpose: never fabricated. */
+  const LEVEL_MIN = { "All levels": 0, Beginner: 0, Intermediate: 1, "Intermediate+": 1, Advanced: 2 };
+  const TYPE_TAG = { "Day sailing": "Day sail", Training: "Practice", Racing: "Racing", Delivery: "Delivery" };
+  const AREA_NAMES = ["San Francisco", "Berkeley", "Sausalito", "Alameda"];
+  const areaFor = (location) => AREA_NAMES.find((a) => location.toLowerCase().includes(a.toLowerCase()));
+
+  const fetchRealSkipperProfile = async (userId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return null;
+    const { data: row, error } = await supa
+      .from("profiles")
+      .select(`
+        user_id, slug, name, photo_url, home_sailing_area, bio, sailing_since, identity_verified,
+        profile_sailing_types ( type ),
+        profile_roles ( role, note ),
+        profile_boats ( name, experience ),
+        profile_credentials ( issuer, name, year, detail )
+      `)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !row) return null;
+    return {
+      slug: row.slug,
+      userId: row.user_id,
+      name: row.name,
+      photo: row.photo_url || "",
+      heroPhoto: row.photo_url || "",
+      sailingArea: row.home_sailing_area || "",
+      bio: row.bio || "",
+      sailingSince: row.sailing_since || "",
+      types: row.profile_sailing_types.map((t) => t.type),
+      roles: row.profile_roles.map((r) => ({ name: r.role, note: r.note || "" })),
+      boats: row.profile_boats.map((b) => ({ name: b.name, experience: b.experience })),
+      credentials: row.profile_credentials.map((c) => ({ issuer: c.issuer, name: c.name, year: c.year, detail: c.detail || "" })),
+      verification: { identity: !!row.identity_verified },
+      confirmedSails: 0, repeatConnections: 0,
+      sailedWith: [], sailedWithMore: 0, feedback: [], recent: [],
+    };
+  };
+
+  const shapeRealSail = (row, skipperProfile) => ({
+    id: row.id,
+    isReal: true,
+    status: row.status,
+    skipperUserId: row.skipper_user_id,
+    skipperProfile,
+    skipper: skipperProfile.slug,
+    type: row.type,
+    typeTag: TYPE_TAG[row.type],
+    title: row.title,
+    boat: row.boat,
+    location: row.location,
+    area: areaFor(row.location),
+    date: new Date(`${row.sail_date}T${row.start_time}`),
+    time: (row.start_time || "").slice(0, 5),
+    duration: row.duration || "Not specified",
+    level: row.experience_level || "Not specified",
+    minLevel: LEVEL_MIN[row.experience_level] ?? 0,
+    crewNeeded: row.crew_needed || "Not specified",
+    positions: row.roles_needed && row.roles_needed.length ? row.roles_needed : ["Not specified"],
+    about: row.description || "",
+    meet: row.location,
+    bring: "Not specified",
+    photo: "", alt: row.title, ph: "#5d6a7a", pos: "50% 50%", posDetail: "50% 50%",
+  });
+
+  /* Every OPEN real sail, each with its skipper profile already resolved. A
+     sail whose skipper profile can't be resolved is skipped entirely rather
+     than shown with a placeholder identity — posting already requires a
+     completed profile, so this should only happen if something upstream
+     went wrong. If Supabase itself is unreachable, this quietly returns no
+     real sails and the demo sails still render on their own. */
+  const fetchRealOpenSails = async () => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return [];
+    try {
+      const { data: rows, error } = await supa.from("sails").select("*").eq("status", "open");
+      if (error || !rows) return [];
+      const cache = new Map();
+      const getProfile = async (userId) => {
+        if (!cache.has(userId)) cache.set(userId, await fetchRealSkipperProfile(userId));
+        return cache.get(userId);
+      };
+      const shaped = await Promise.all(rows.map(async (row) => {
+        const profile = await getProfile(row.skipper_user_id);
+        return profile ? shapeRealSail(row, profile) : null;
+      }));
+      return shaped.filter(Boolean);
+    } catch (e) {
+      return [];
+    }
+  };
+
+  /* A single real sail by id, regardless of status — used by the detail page,
+     where an owner needs to be able to open their own closed sail directly.
+     RLS (not this code) is what actually enforces that only the owner can
+     see a closed one; a non-owner's request for one simply comes back empty. */
+  const fetchRealSailById = async (id) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return null;
+    try {
+      const { data: row, error } = await supa.from("sails").select("*").eq("id", id).maybeSingle();
+      if (error || !row) return null;
+      const profile = await fetchRealSkipperProfile(row.skipper_user_id);
+      return profile ? shapeRealSail(row, profile) : null;
+    } catch (e) {
+      return null;
+    }
+  };
 
   /* Find a sail ----------------------------------------------------------- */
   const cardsEl = document.getElementById("cards");
@@ -57,7 +180,7 @@
       return `
         <article class="sail-card" data-id="${esc(s.id)}">
           <div class="photo__frame sail-card__photo" style="--ph:${esc(s.ph)};--pos:${esc(s.pos)}">
-            ${photoMedia(s.photo, s.alt)}
+            ${photoOrPlaceholder(s.photo, s.alt)}
             <div class="photo__scrim"></div>
             <span class="sail-card__num" aria-hidden="true">${s.n}</span>
           </div>
@@ -73,10 +196,10 @@
           </div>
           <div class="sail-card__side">
             <div class="sail-skipper">
-              <a class="avatar-ini" href="${prof}" aria-label="${esc(p.name)}, CURRENT profile" tabindex="-1">${esc(initials(p.name))}<img src="${esc(p.photo)}" alt="" loading="lazy" decoding="async" onerror="this.hidden=true"></a>
+              <a class="avatar-ini" href="${prof}" aria-label="${esc(p.name)}, CURRENT profile" tabindex="-1">${esc(initials(p.name))}${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" decoding="async" onerror="this.hidden=true">` : ""}</a>
               <div>
                 <span class="label">Skipper</span>
-                <a class="sail-skipper__name" href="${prof}">${esc(p.name)}${p.verification ? verifiedTick() : ""}</a>
+                <a class="sail-skipper__name" href="${prof}">${esc(p.name)}${p.verification?.identity ? verifiedTick() : ""}</a>
                 <p class="sail-skipper__meta">${p.confirmedSails} confirmed sails</p>
                 <a class="sail-skipper__profile" href="${prof}">CURRENT profile →</a>
               </div>
@@ -91,7 +214,7 @@
 
     const matches = (s) =>
       (state.area === "all" || s.area === state.area) &&
-      (state.type === "all" || s.type === state.type) &&
+      (state.type === "all" || (s.typeTag || s.type) === state.type) &&
       s.minLevel <= LEVELS[state.level] &&
       (state.date === "any" ||
         (state.date === "week" && daysUntil(s.date) <= 7) ||
@@ -99,8 +222,19 @@
 
     const anyFilter = () => state.area !== "all" || state.date !== "any" || state.type !== "all" || state.level !== "all";
 
+    /* All sails shown on this page: the 4 demo sails plus every real open
+       sail, merged and renumbered together. Fetched once, up front, so the
+       rest of this page's filtering/rendering stays fully synchronous. */
+    let allSails = sails;
+    const loadAllSails = async () => {
+      const real = await fetchRealOpenSails();
+      allSails = [...sails.map((s) => ({ ...s, n: undefined })), ...real]
+        .sort((a, b) => a.date - b.date)
+        .map((s, i) => ({ ...s, n: i + 1 }));
+    };
+
     const render = () => {
-      const shown = sails.filter(matches);
+      const shown = allSails.filter(matches);
       countEl.textContent = `${shown.length} ${shown.length === 1 ? "sail" : "sails"}`;
       cardsEl.innerHTML = shown.length
         ? shown.map(card).join("")
@@ -145,15 +279,22 @@
       }
     });
 
-    /* Map pins and card highlight */
-    pinsEl.innerHTML = sails
-      .map(
-        (s) => `
-        <a class="map__pin" href="sail.html?id=${esc(s.id)}" data-id="${esc(s.id)}" aria-label="${s.n}. ${esc(s.title)}, ${esc(s.location)}">
-          <circle cx="${s.map.x}" cy="${s.map.y}" r="13"/><text x="${s.map.x}" y="${s.map.y + 4.2}">${s.n}</text>
-        </a>`
-      )
-      .join("");
+    /* Map pins and card highlight. Only demo sails carry illustrative map
+       coordinates — real sails simply have no pin, same as the map's own
+       "Illustrative map" caption already implies. Numbers are drawn from
+       allSails' final numbering (set once loadAllSails() resolves below) so
+       a pin's number always matches its card's number, real sails included. */
+    const paintPins = () => {
+      pinsEl.innerHTML = allSails
+        .filter((s) => s.map)
+        .map(
+          (s) => `
+          <a class="map__pin" href="sail.html?id=${esc(s.id)}" data-id="${esc(s.id)}" aria-label="${s.n}. ${esc(s.title)}, ${esc(s.location)}">
+            <circle cx="${s.map.x}" cy="${s.map.y}" r="13"/><text x="${s.map.x}" y="${s.map.y + 4.2}">${s.n}</text>
+          </a>`
+        )
+        .join("");
+    };
     const setActive = (id, on) => {
       cardsEl.querySelector(`.sail-card[data-id="${id}"]`)?.classList.toggle("is-active", on);
       pinsEl.querySelector(`.map__pin[data-id="${id}"]`)?.classList.toggle("is-active", on);
@@ -163,7 +304,11 @@
     pinsEl.addEventListener("mouseover", (e) => { const p = e.target.closest(".map__pin"); if (p) setActive(p.dataset.id, true); });
     pinsEl.addEventListener("mouseout", (e) => { const p = e.target.closest(".map__pin"); if (p) setActive(p.dataset.id, false); });
 
+    /* Demo sails render immediately; real sails join in (and pins/count
+       update) as soon as loadAllSails() resolves. */
+    paintPins();
     render();
+    loadAllSails().then(() => { paintPins(); render(); });
   }
 
   /* Landing: a taste of Find a sail (same data, its own photography) -------- */
@@ -197,16 +342,31 @@
   /* One layout for every sail. Everything on the page comes from the sail and its skipper's data. */
   const detailEl = document.querySelector("[data-sail-detail]");
   if (detailEl) {
-    const s = sails.find((x) => x.id === new URLSearchParams(location.search).get("id"));
+    (async () => {
+      const id = new URLSearchParams(location.search).get("id");
+      let s = sails.find((x) => x.id === id);
+      /* Not one of the 4 demo sails — try Supabase. RLS means a non-owner's
+         request for someone else's closed sail just comes back empty, same
+         as "not found". */
+      if (!s) s = await fetchRealSailById(id);
 
-    if (!s) {
-      detailEl.innerHTML = `
-        <div class="container"><div class="page-intro">
-          <p class="eyebrow">Find a sail</p>
-          <h1 class="display-2">We could not find that sail.</h1>
-          <a class="link-arrow" href="find-a-sail.html">Back to all sails <span>→</span></a>
-        </div></div>`;
-    } else {
+      if (!s) {
+        detailEl.innerHTML = `
+          <div class="container"><div class="page-intro">
+            <p class="eyebrow">Find a sail</p>
+            <h1 class="display-2">We could not find that sail.</h1>
+            <a class="link-arrow" href="find-a-sail.html">Back to all sails <span>→</span></a>
+          </div></div>`;
+        return;
+      }
+
+      /* Only a real sail has an owner at all; demo sails never show owner controls. */
+      let isOwner = false;
+      if (s.isReal && window.CURRENT_AUTH) {
+        const session = await window.CURRENT_AUTH.getSession();
+        isOwner = !!session && session.user.id === s.skipperUserId;
+      }
+
       const p = skipperOf(s);
       const loop = window.CURRENT_LOOP;
       const me = loop ? loop.overlayMe(data.profiles[data.currentUser]) : data.profiles[data.currentUser];
@@ -215,7 +375,9 @@
       const when = s.multiDay ? `Departs ${dateLong} · ${clock(s.date)}` : `${dateLong} · ${clock(s.date)}`;
       document.title = `${s.title} — Find a sail — CURRENT`;
 
-      /* Reusable skipper preview: filled entirely from the skipper's profile data. */
+      /* Reusable skipper preview: filled entirely from the skipper's profile data.
+         The verified tick only ever shows when identity.verified is actually true —
+         real skippers have no real verification yet, so it correctly stays hidden. */
       const skipperPreview = (sk) => {
         const withPeople = sk.sailedWith.map((x) => data.profiles[x.slug]).filter(Boolean);
         return `
@@ -224,7 +386,7 @@
             <div class="skipper-card__id">
               ${avatar(sk, "avatar--lg")}
               <div>
-                <h2 class="skipper-card__name">${esc(sk.name)}${verifiedTick()}</h2>
+                <h2 class="skipper-card__name">${esc(sk.name)}${sk.verification?.identity ? verifiedTick() : ""}</h2>
                 <p class="skipper-card__area">${esc(sk.sailingArea)}</p>
               </div>
             </div>
@@ -243,6 +405,18 @@
           </section>`;
       };
 
+      /* Owner controls (real sails only) replace the request-to-crew button —
+         a skipper doesn't request to crew their own sail. */
+      const ownerActions = `
+        <a class="btn btn--lg detail__request" href="post-sail.html?id=${esc(s.id)}">Edit sail</a>
+        <button class="btn btn--ghost detail__request" type="button" data-close-sail${s.status === "closed" ? " disabled" : ""}>${s.status === "closed" ? "Closed" : "Close sail"}</button>
+        <p class="small field-error" data-close-error hidden></p>
+        ${s.status === "closed" ? `<p class="small pf-muted">This sail is closed and no longer listed on Find a sail.</p>` : ""}`;
+
+      const requestActions = `
+        <button class="btn btn--lg detail__request" type="button" data-request></button>
+        <p class="small" data-request-status hidden></p>`;
+
       detailEl.innerHTML = `
         <div class="container">
           <a class="link-back" href="find-a-sail.html">← All sails</a>
@@ -251,7 +425,7 @@
             <div class="detail__left">
               <figure class="detail__photo">
                 <div class="photo__frame" style="--ph:${esc(s.ph)};--pos:${esc(s.posDetail || s.pos)}">
-                  ${photoMedia(s.photo, s.alt)}
+                  ${photoOrPlaceholder(s.photo, s.alt)}
                   <div class="photo__scrim"></div>
                 </div>
               </figure>
@@ -262,10 +436,7 @@
                 <div><dd>${esc(s.bring.charAt(0).toUpperCase() + s.bring.slice(1))}</dd><dt>What to bring</dt></div>
               </dl>
 
-              <div class="detail__about">
-                <h2>About this sail</h2>
-                <p>${esc(s.about)}</p>
-              </div>
+              ${s.about ? `<div class="detail__about"><h2>About this sail</h2><p>${esc(s.about)}</p></div>` : ""}
             </div>
 
             <div class="detail__side">
@@ -279,8 +450,7 @@
                   <div><dd>${esc(s.crewNeeded)}</dd><dt>Crew needed</dt></div>
                   <div><dd>${s.positions.map(esc).join(" · ")}</dd><dt>Positions</dt></div>
                 </dl>
-                <button class="btn btn--lg detail__request" type="button" data-request></button>
-                <p class="small" data-request-status hidden></p>
+                ${isOwner ? ownerActions : requestActions}
               </div>
               ${skipperPreview(p)}
             </div>
@@ -288,6 +458,7 @@
           </div>
         </div>
 
+        ${isOwner ? "" : `
         <dialog class="modal" aria-labelledby="modal-title">
           <div class="modal__panel" data-state="form">
             <p class="label">Request to crew</p>
@@ -319,7 +490,29 @@
               <button class="btn" type="button" data-done>Done</button>
             </div>
           </div>
-        </dialog>`;
+        </dialog>`}`;
+
+      if (isOwner) {
+        /* Close sail: RLS (auth.uid() = skipper_user_id), not this check, is what
+           actually stops anyone else from doing this — this is just the UI. */
+        const closeBtn = detailEl.querySelector("[data-close-sail]");
+        const closeError = detailEl.querySelector("[data-close-error]");
+        closeBtn?.addEventListener("click", async () => {
+          if (s.status === "closed") return;
+          if (!confirm("Close this sail? It will no longer appear in Find a sail.")) return;
+          closeBtn.disabled = true;
+          const { error } = await window.CURRENT_SUPABASE.from("sails").update({ status: "closed" }).eq("id", s.id);
+          if (error) {
+            console.error("Close sail failed:", error);
+            closeError.textContent = "Could not close this sail. Please try again.";
+            closeError.hidden = false;
+            closeBtn.disabled = false;
+            return;
+          }
+          location.reload();
+        });
+        return;
+      }
 
       /* Request to crew interaction. State lives in loop.js (localStorage), so it
          survives navigating to the crew-request and confirm-sail screens and back. */
@@ -366,6 +559,6 @@
       });
       modal.querySelector("[data-done]").addEventListener("click", () => modal.close());
       modal.addEventListener("click", (e) => { if (e.target === modal) modal.close(); }); /* backdrop */
-    }
+    })();
   }
 })();

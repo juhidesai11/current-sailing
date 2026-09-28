@@ -42,8 +42,8 @@
   };
 
   /* Header nav: by default script.js renders the logged-out nav (Log in / Create
-     profile). If a session exists, swap those two for Post a sail (inert), My
-     profile and Log out — see script.js for where this is called. */
+     profile). If a session exists, swap those two for Post a sail, My profile
+     and Log out — see script.js for where this is called. */
   const applyLoggedInNav = async () => {
     const nav = document.getElementById("site-nav");
     if (!nav) return;
@@ -52,10 +52,10 @@
 
     const createBtn = nav.querySelector("[data-nav-create]");
     if (createBtn) {
-      const soon = document.createElement("span");
-      soon.className = "nav__soon";
-      soon.textContent = "Post a sail";
-      createBtn.insertAdjacentElement("beforebegin", soon);
+      const post = document.createElement("a");
+      post.href = "post-sail.html";
+      post.textContent = "Post a sail";
+      createBtn.insertAdjacentElement("beforebegin", post);
 
       const profile = await getMyProfile();
       createBtn.textContent = "My profile";

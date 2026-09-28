@@ -377,3 +377,11 @@ grant insert, update on public.profiles to authenticated;
 -- own ..." policies).
 grant select on public.profile_sailing_types, public.profile_roles, public.profile_boats, public.profile_credentials to anon, authenticated;
 grant insert, update, delete on public.profile_sailing_types, public.profile_roles, public.profile_boats, public.profile_credentials to authenticated;
+
+-- sails: publicly readable when open, plus a skipper can always read their own
+-- (matches "open sails are publicly readable" / "skippers can read their own
+-- sails"); only the skipper can insert/update their own (matches "users can
+-- create sails as themselves" / "skippers can edit or close their own sails").
+-- No delete grant — there is no delete policy, and sails are closed, not deleted.
+grant select on public.sails to anon, authenticated;
+grant insert, update on public.sails to authenticated;
