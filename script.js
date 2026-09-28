@@ -32,7 +32,8 @@
         ${link("find-a-sail.html", "Find a sail", "find")}
         ${link("coaching.html", "Coaching", "coaching")}
         ${link("boats.html", "Boats", "boats")}
-        <a class="btn" href="create-profile.html"${page === "create" ? ' aria-current="page"' : ""}>Create profile</a>
+        <a href="login.html" data-nav-login>Log in</a>
+        <a class="btn" href="signup.html" data-nav-create${page === "create" ? ' aria-current="page"' : ""}>Create profile</a>
       </nav>
     </div>`;
 
@@ -57,6 +58,7 @@
   };
   mount("header", headerHTML);
   mount("footer", footerHTML);
+  window.CURRENT_AUTH?.initNav();
 
   const toggle = document.querySelector(".nav-toggle");
   const nav = document.getElementById("site-nav");

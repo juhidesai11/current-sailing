@@ -41,6 +41,13 @@ on purpose. Those only grow through the crew-request loop below. A profile page 
 no history yet shows a plain "Sailing history" empty state instead of the usual three
 sections.
 
+Boats & classes (step 3) is a small custom combobox, not a native `<input list>` /
+`<datalist>` — a native datalist's popover is drawn by the browser itself and can't be
+positioned, sized or styled, which doesn't work here anyway: there's no fixed list of
+boats to choose from. `BOAT_SUGGESTIONS` in `create-profile.js` is a short starter list
+for autocomplete only; typing anything else offers "Add "<what you typed>"", and both
+paths save to the same `{ name, experience }` shape.
+
 The profile photo, if added, is downscaled client-side to a JPEG data URL and stored
 inline in `localStorage` — there's no upload endpoint, so nothing leaves the browser.
 

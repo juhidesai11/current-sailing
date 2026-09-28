@@ -1,52 +1,40 @@
-/* CURRENT — Create profile: a 6-step onboarding wizard, front-end only.
-   Reopens pre-filled from localStorage ("Edit profile"); on completion it saves a
-   profile shaped exactly like the sample sailors in data.js and becomes "you"
-   (see the end of data.js) — so profile.html renders it with no new code path.
+/* CURRENT — Create profile: a 6-step onboarding wizard.
+   Requires a signed-in Supabase user (see init() below) — a logged-out visitor is
+   sent to sign up first. Reopens pre-filled from that user's own row in `profiles`
+   ("Edit profile"); on completion it saves to `profiles` and its child tables
+   (profile_sailing_types, profile_roles, profile_boats, profile_credentials).
 
    What this DOES NOT do, on purpose: it never sets confirmedSails, repeatConnections,
    sailedWith, feedback or recent — those are CURRENT-generated, and only the
-   crew-request loop (loop.js) is allowed to add to them. */
+   crew-request loop (loop.js, still prototype-only) is allowed to add to them. It
+   also never sets identity_verified — there is no real verification yet, and the
+   database itself (a trigger, see supabase/schema.sql) ignores any value this page
+   might try to send for that column regardless. */
 (() => {
   const root = document.querySelector("[data-create-profile]");
   if (!root) return;
 
   const data = window.CURRENT_DATA;
-  const { esc, verifiedTick } = window.CURRENT_UI;
-  const KEY = "current.myProfile";
+  const { esc } = window.CURRENT_UI;
+  const auth = window.CURRENT_AUTH;
+  const supa = window.CURRENT_SUPABASE;
 
   const TYPE_OPTIONS = ["Racing", "Day sailing", "Cruising", "Offshore", "Dinghy"];
   const ROLE_OPTIONS = ["Helm", "Skipper", "Bow", "Trimmer", "Pit", "Crew", "Instructor"];
-  const BOAT_SUGGESTIONS = ["J/105", "J/24", "Express 27", "Melges 24", "Catalina 34", "Santa Cruz 27", "Beneteau 40", "Hunter 33", "Laser", "420", "Optimist"];
+  /* Suggestions only — not a closed list. Anything typed can be added as a custom entry;
+     there are far too many boat manufacturers, models and racing classes to enumerate. */
+  const BOAT_SUGGESTIONS = ["J/105", "J/24", "J/70", "Express 27", "Melges 24", "Laser", "ILCA 6", "ILCA 7", "420", "470", "Optimist", "FJ", "RS Feva", "RS Tera", "Catalina 34", "Beneteau 40"];
   const EXPERIENCE_LEVELS = ["Some", "Regular", "Extensive"];
   const ISSUERS = ["US Sailing", "RYA", "YRA", "California Boater Card", "PADI", "Other"];
   const THIS_YEAR = new Date().getFullYear();
 
   /* State -------------------------------------------------------------------
-     Seeded from an existing saved profile when there is one (Edit profile),
-     otherwise blank. `slug` only exists once a profile has been created, and
+     Seeded from this user's existing row in `profiles` when there is one (Edit
+     profile), otherwise blank — see init() at the bottom, which loads this before
+     the first paint(). `slug` only exists once a profile has been created, and
      editing keeps that same slug so the share link never changes underneath it. */
-  const existing = (() => {
-    try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; }
-  })();
-
-  const state = existing
-    ? {
-        slug: existing.slug, name: existing.name, photo: existing.photo || "",
-        sailingArea: existing.sailingArea, bio: existing.bio,
-        types: [...existing.types], roles: existing.roles.map((r) => r.name),
-        sailingSince: String(existing.sailingSince || ""),
-        boats: existing.boats.map((b) => ({ name: b.name, experience: b.experience || EXPERIENCE_LEVELS[0] })),
-        credentials: existing.credentials.map((c) => ({ issuer: c.issuer, name: c.name, year: c.year, detail: c.number || "" })),
-        verified: !!existing.verification?.identity,
-      }
-    : {
-        slug: "", name: "", photo: "",
-        sailingArea: "", bio: "",
-        types: [], roles: [], sailingSince: "",
-        boats: [], credentials: [],
-        verified: false,
-      };
-
+  let state = null;
+  let profileId = null;
   let step = 1;
   const STEP_COUNT = 6;
 
@@ -66,7 +54,7 @@
     return `${base}-${n}`;
   };
 
-  /* Downscale an uploaded photo client-side so it stores reasonably in localStorage. */
+  /* Downscale an uploaded photo client-side so it stores reasonably as a data URL. */
   const readPhoto = (file) =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -145,13 +133,13 @@
     <h1>What have you sailed?</h1>
     <p class="onboard__lede">Add the boats and classes you have experience with.</p>
     <div class="onboard__fields">
-      <div class="entry-add">
-        <label class="field"><span>Boat or class</span>
-          <input type="text" list="boat-suggestions" data-boat-name placeholder="e.g. J/105, Express 27, Laser">
-          <datalist id="boat-suggestions">${BOAT_SUGGESTIONS.map((b) => `<option value="${esc(b)}">`).join("")}</datalist>
-        </label>
-        <button class="btn btn--ghost" type="button" data-boat-add>Add</button>
-      </div>
+      <label class="field"><span>Boats &amp; classes</span>
+        <div class="combo" data-boat-combo>
+          <input type="text" data-boat-input autocomplete="off" placeholder="Search or add a boat / class"
+                 role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="boat-combo-menu">
+          <ul class="combo__menu" id="boat-combo-menu" role="listbox" data-boat-menu hidden></ul>
+        </div>
+      </label>
       <div class="entry-list">
         ${state.boats.length
           ? state.boats.map((b, i) => `
@@ -196,19 +184,11 @@
   const stepIdentity = () => `
     <p class="eyebrow">Step 5 of ${STEP_COUNT}</p>
     <h1>Build trust before you sail</h1>
-    <p class="onboard__lede">Optional.</p>
+    <p class="onboard__lede">Identity verification</p>
     <div class="onboard__fields">
       <div class="id-card">
-        ${state.verified
-          ? `<p class="id-card__title">${verifiedTick("Identity verified")} Identity verified ✓</p>
-             <p class="id-card__lede">Prototype verification. No real identity check has taken place.</p>`
-          : `<p class="id-card__title">Verify your identity</p>
-             <p class="id-card__lede">Identity verification helps other sailors know they are connecting with a real person.</p>
-             <p class="id-card__note">Prototype verification. ID.me is a proposed integration for this concept — CURRENT does not currently verify identity or store government identification.</p>
-             <div class="id-card__actions">
-               <button class="btn" type="button" data-verify>Verify identity</button>
-               <button class="btn btn--ghost" type="button" data-verify-skip>Skip for now</button>
-             </div>`}
+        <p class="id-card__title">Not available yet</p>
+        <p class="id-card__lede">CURRENT does not verify identity yet. When a real verification process exists, it will run through a separate, legitimate check — not something set from this page.</p>
       </div>
     </div>`;
 
@@ -232,7 +212,7 @@
               ${state.photo ? `<img src="${state.photo}" alt="">` : ""}
             </span>
             <div>
-              <h2 class="skipper-card__name">${esc(state.name || "Your name")}${state.verified ? verifiedTick() : ""}</h2>
+              <h2 class="skipper-card__name">${esc(state.name || "Your name")}</h2>
               <p class="skipper-card__area">${esc(state.sailingArea || "Home sailing area")}</p>
             </div>
           </div>
@@ -269,10 +249,98 @@
                 ? `<button class="btn" type="button" data-next>Next <span aria-hidden="true">→</span></button>`
                 : `<button class="btn" type="button" data-finish>Create profile <span aria-hidden="true">→</span></button>`}
             </div>
+            <p class="small field-error" data-finish-error hidden></p>
           </div>
         </div>
       </div>`;
     wire();
+  };
+
+  /* Step 3 combobox --------------------------------------------------------------
+     A small custom combobox instead of a native <input list>/<datalist>: a native
+     datalist's popover is drawn by the browser itself, so it can't be positioned,
+     sized or styled — which is exactly why it showed up in the wrong place. This
+     version is a plain absolutely-positioned menu against a relatively-positioned
+     wrapper, so it always sits directly under the input and matches its width.
+     It also has to allow free-text entries — there's no closed list of boats. */
+  let closeBoatMenuOnOutsideClick = null;
+
+  const boatSuggestionMatches = (query) => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    const taken = new Set(state.boats.map((b) => b.name.toLowerCase()));
+    return BOAT_SUGGESTIONS.filter((b) => !taken.has(b.toLowerCase()) && b.toLowerCase().includes(needle)).slice(0, 6);
+  };
+
+  const addBoat = (name) => {
+    const clean = name.trim();
+    if (!clean || state.boats.some((b) => b.name.toLowerCase() === clean.toLowerCase())) return;
+    state.boats.push({ name: clean, experience: EXPERIENCE_LEVELS[0] });
+    paint();
+  };
+
+  const wireBoatCombo = () => {
+    const combo = root.querySelector("[data-boat-combo]");
+    const input = root.querySelector("[data-boat-input]");
+    const menu = root.querySelector("[data-boat-menu]");
+    if (!combo || !input || !menu) return;
+
+    let items = []; // { type: "suggestion" | "add", value }
+    let activeIndex = -1;
+
+    const paintMenu = () => {
+      if (!items.length) {
+        menu.hidden = true; menu.innerHTML = "";
+        input.setAttribute("aria-expanded", "false");
+        input.removeAttribute("aria-activedescendant");
+        return;
+      }
+      menu.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      menu.innerHTML = items.map((it, i) => `
+        <li class="combo__option${it.type === "add" ? " combo__option--add" : ""}${i === activeIndex ? " is-active" : ""}"
+            id="boat-opt-${i}" role="option" aria-selected="${i === activeIndex}" data-i="${i}">
+          ${it.type === "add" ? `Add “${esc(it.value)}”` : esc(it.value)}
+        </li>`).join("");
+      input.setAttribute("aria-activedescendant", activeIndex >= 0 ? `boat-opt-${activeIndex}` : "");
+    };
+
+    const openForQuery = () => {
+      const q = input.value;
+      const matches = boatSuggestionMatches(q);
+      const trimmed = q.trim();
+      const exact = trimmed.toLowerCase();
+      const alreadySuggested = BOAT_SUGGESTIONS.some((b) => b.toLowerCase() === exact);
+      const alreadyAdded = state.boats.some((b) => b.name.toLowerCase() === exact);
+      const showAdd = trimmed && !alreadySuggested && !alreadyAdded;
+      items = [...matches.map((value) => ({ type: "suggestion", value })), ...(showAdd ? [{ type: "add", value: trimmed }] : [])];
+      activeIndex = items.length ? 0 : -1;
+      paintMenu();
+    };
+
+    const closeMenu = () => { items = []; activeIndex = -1; paintMenu(); };
+    const choose = (i) => { if (items[i]) addBoat(items[i].value); }; // addBoat() repaints the whole step
+
+    input.addEventListener("input", openForQuery);
+    input.addEventListener("focus", () => { if (input.value.trim()) openForQuery(); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); if (items.length) { activeIndex = (activeIndex + 1) % items.length; paintMenu(); } }
+      else if (e.key === "ArrowUp") { e.preventDefault(); if (items.length) { activeIndex = (activeIndex - 1 + items.length) % items.length; paintMenu(); } }
+      else if (e.key === "Enter") { e.preventDefault(); if (items.length) choose(activeIndex >= 0 ? activeIndex : 0); }
+      else if (e.key === "Escape") { closeMenu(); }
+    });
+    /* mousedown + preventDefault, not click: stops the input from blurring before the
+       tap registers, which is what makes taps on the menu work reliably on mobile too. */
+    menu.addEventListener("mousedown", (e) => {
+      const li = e.target.closest("[data-i]");
+      if (!li) return;
+      e.preventDefault();
+      choose(+li.dataset.i);
+    });
+
+    if (closeBoatMenuOnOutsideClick) document.removeEventListener("click", closeBoatMenuOnOutsideClick);
+    closeBoatMenuOnOutsideClick = (e) => { if (!e.target.closest("[data-boat-combo]")) closeMenu(); };
+    document.addEventListener("click", closeBoatMenuOnOutsideClick);
   };
 
   /* Wiring ----------------------------------------------------------------------- */
@@ -307,13 +375,8 @@
     root.querySelectorAll("[data-role]").forEach((b) =>
       b.addEventListener("click", () => { state.roles = toggle(state.roles, b.dataset.role); paint(); }));
 
-    /* Step 3: boats */
-    root.querySelector("[data-boat-add]")?.addEventListener("click", () => {
-      const name = val("[data-boat-name]");
-      if (!name) return;
-      state.boats.push({ name, experience: EXPERIENCE_LEVELS[0] });
-      paint();
-    });
+    /* Step 3: boats — custom combobox (search + free entry), see wireBoatCombo() below. */
+    wireBoatCombo();
     root.querySelectorAll("[data-boat-exp]").forEach((sel) =>
       sel.addEventListener("change", (e) => { state.boats[+sel.dataset.boatExp].experience = e.target.value; }));
     root.querySelectorAll("[data-boat-remove]").forEach((b) =>
@@ -332,39 +395,117 @@
     });
     root.querySelectorAll("[data-cred-remove]").forEach((b) =>
       b.addEventListener("click", () => { state.credentials.splice(+b.dataset.credRemove, 1); paint(); }));
-
-    /* Step 5: identity */
-    root.querySelector("[data-verify]")?.addEventListener("click", (e) => {
-      e.target.disabled = true;
-      e.target.textContent = "Verifying…";
-      setTimeout(() => { state.verified = true; paint(); }, 700);
-    });
-    root.querySelector("[data-verify-skip]")?.addEventListener("click", () => { step += 1; paint(); });
   };
 
-  /* Finish: build the saved profile in the exact shape data.js's sample sailors use. */
-  function finish() {
-    const takenSlugs = Object.keys(data.profiles).filter((s) => s !== state.slug);
-    const slug = state.slug || uniqueSlug(slugify(state.name || "sailor"), takenSlugs);
-    const profile = {
-      slug,
-      name: state.name || "New sailor",
-      verification: { identity: !!state.verified },
-      photo: state.photo || "",
-      heroPhoto: state.photo || "",
-      sailingArea: state.sailingArea || "San Francisco Bay Area",
-      sailingSince: state.sailingSince ? Number(state.sailingSince) : THIS_YEAR,
-      bio: state.bio || "",
-      types: [...state.types],
-      roles: state.roles.map((name) => ({ name, note: "" })),
-      boats: state.boats.map((b) => ({ name: b.name, experience: b.experience })),
-      credentials: state.credentials.map((c) => ({ issuer: c.issuer, name: c.name, year: c.year, detail: c.detail || "" })),
-      /* CURRENT-generated — always zero/empty on a brand-new profile. Only loop.js adds to these. */
-      confirmedSails: 0, repeatConnections: 0, sailedWith: [], sailedWithMore: 0, feedback: [], recent: [],
+  /* Finish: upsert this user's row in `profiles`, then replace its child rows
+     (sailing types, roles, boats, credentials) to match the wizard's current
+     state, and go to the resulting CURRENT profile. Never sends identity_verified
+     — the column isn't in `payload` at all, and the database would ignore it
+     even if it were (see the trigger in supabase/schema.sql). */
+  async function finish() {
+    const setError = (msg) => {
+      const el = root.querySelector("[data-finish-error]");
+      if (el) { el.textContent = msg; el.hidden = !msg; }
     };
-    try { localStorage.setItem(KEY, JSON.stringify(profile)); } catch (e) { /* ignore */ }
-    location.href = "profile.html";
+    const finishBtn = root.querySelector("[data-finish]");
+    setError("");
+    if (finishBtn) finishBtn.disabled = true;
+
+    try {
+      const session = await auth.getSession();
+      if (!session) { location.href = "signup.html"; return; }
+
+      const takenSlugs = Object.keys(data.profiles).filter((s) => s !== state.slug);
+      let slug = state.slug || uniqueSlug(slugify(state.name || "sailor"), takenSlugs);
+
+      const basePayload = {
+        user_id: session.user.id,
+        name: state.name || "New sailor",
+        photo_url: state.photo || null,
+        home_sailing_area: state.sailingArea || null,
+        bio: state.bio || null,
+        sailing_since: state.sailingSince ? Number(state.sailingSince) : null,
+      };
+
+      let row = null;
+      for (let attempt = 0; attempt < 5 && !row; attempt++) {
+        const { data: upserted, error } = await supa
+          .from("profiles")
+          .upsert({ ...basePayload, slug }, { onConflict: "user_id" })
+          .select("id, slug")
+          .single();
+        if (!error) { row = upserted; break; }
+        if (error.code === "23505" && !state.slug) { slug = `${slug}-${attempt + 2}`; continue; }
+        throw error;
+      }
+      if (!row) throw new Error("slug unavailable");
+
+      profileId = row.id;
+
+      await Promise.all([
+        supa.from("profile_sailing_types").delete().eq("profile_id", profileId),
+        supa.from("profile_roles").delete().eq("profile_id", profileId),
+        supa.from("profile_boats").delete().eq("profile_id", profileId),
+        supa.from("profile_credentials").delete().eq("profile_id", profileId),
+      ]);
+
+      const inserts = [];
+      if (state.types.length)
+        inserts.push(supa.from("profile_sailing_types").insert(state.types.map((type) => ({ profile_id: profileId, type }))));
+      if (state.roles.length)
+        inserts.push(supa.from("profile_roles").insert(state.roles.map((role) => ({ profile_id: profileId, role, note: "" }))));
+      if (state.boats.length)
+        inserts.push(supa.from("profile_boats").insert(state.boats.map((b) => ({ profile_id: profileId, name: b.name, experience: b.experience }))));
+      if (state.credentials.length)
+        inserts.push(supa.from("profile_credentials").insert(state.credentials.map((c) => ({
+          profile_id: profileId, issuer: c.issuer, name: c.name,
+          year: c.year ? Number(c.year) : null, detail: c.detail || null,
+        }))));
+
+      const results = await Promise.all(inserts);
+      const failed = results.find((r) => r.error);
+      if (failed) throw failed.error;
+
+      location.href = `profile.html?p=${encodeURIComponent(row.slug)}`;
+    } catch (err) {
+      setError("Something went wrong saving your profile. Please try again.");
+      if (finishBtn) finishBtn.disabled = false;
+    }
   }
 
-  paint();
+  /* Bootstrap: require a signed-in user, then load their existing profile (if
+     any) to prefill the wizard — otherwise start blank. */
+  async function init() {
+    const session = auth ? await auth.getSession() : null;
+    if (!session) { location.href = "signup.html"; return; }
+
+    const { data: row } = await supa
+      .from("profiles")
+      .select(`
+        id, slug, name, photo_url, home_sailing_area, bio, sailing_since,
+        profile_sailing_types ( type ),
+        profile_roles ( role, note ),
+        profile_boats ( name, experience ),
+        profile_credentials ( issuer, name, year, detail )
+      `)
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+
+    profileId = row?.id || null;
+    state = row
+      ? {
+          slug: row.slug, name: row.name || "", photo: row.photo_url || "",
+          sailingArea: row.home_sailing_area || "", bio: row.bio || "",
+          types: row.profile_sailing_types.map((t) => t.type),
+          roles: row.profile_roles.map((r) => r.role),
+          sailingSince: row.sailing_since != null ? String(row.sailing_since) : "",
+          boats: row.profile_boats.map((b) => ({ name: b.name, experience: b.experience })),
+          credentials: row.profile_credentials.map((c) => ({ issuer: c.issuer, name: c.name, year: c.year, detail: c.detail || "" })),
+        }
+      : { slug: "", name: "", photo: "", sailingArea: "", bio: "", types: [], roles: [], sailingSince: "", boats: [], credentials: [] };
+
+    paint();
+  }
+
+  init();
 })();

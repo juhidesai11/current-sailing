@@ -610,3 +610,28 @@ a.pf-mate:hover .pf-mate__name { text-decoration: underline; text-underline-offs
   .onboard__nav .btn { width: 100%; }
   .entry-add { flex-direction: column; align-items: stretch; }
 }
+
+/* Auth pages (signup, login, check-email, reset-password): built from the same
+   .onboard / .field / .btn parts as Create profile, just without its progress bar. */
+.field-error { margin-top: -0.4rem; color: #9b2c2c; font-weight: 600; }
+.auth-switch { margin-top: 1.5rem; text-align: center; }
+.auth-switch a { color: var(--sky); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Boats & classes combobox: a plain absolutely-positioned menu against a relatively-
+   positioned wrapper, so it always sits directly under the input, matches its width
+   exactly, and can't be clipped or mispositioned the way a native <datalist> can be.
+   The input itself is unstyled here — nesting it in .field already gives it the same
+   look as every other text field via the ".field input" rule above. */
+.combo { position: relative; }
+.combo__menu {
+  position: absolute; top: calc(100% + 0.35rem); left: 0; right: 0; z-index: 30;
+  margin: 0; padding: 0.35rem; list-style: none;
+  max-height: 14rem; overflow-y: auto;
+  background: #fff; border: 1px solid var(--rule-strong); border-radius: 4px;
+}
+.combo__option {
+  padding: 0.6rem 0.65rem; font-size: 0.9375rem; border-radius: 4px; cursor: pointer;
+}
+.combo__option.is-active,
+.combo__option:hover { background: var(--sky-soft); }
+.combo__option--add { color: var(--sky); font-weight: 600; }

@@ -12,24 +12,74 @@
 
   const data = window.CURRENT_DATA;
   const { esc, verifiedTick, avatar } = window.CURRENT_UI;
-  const slug = new URLSearchParams(location.search).get("p") || data.currentUser;
-  let p = data.profiles[slug];
-  /* Your own profile is the one the crew-request loop (loop.js) can change:
-     confirming a sail adds to your confirmed sails, recent sailing and sailed-with. */
-  if (p && p.slug === data.currentUser && window.CURRENT_LOOP) p = window.CURRENT_LOOP.overlayMe(p);
 
-  if (!p) {
-    root.innerHTML = `
-      <div class="container"><div class="page-intro">
-        <p class="eyebrow">Sailing profile</p>
-        <h1 class="display-2">We could not find that profile.</h1>
-        <a class="link-arrow" href="find-a-sail.html">Find a sail <span>→</span></a>
-      </div></div>`;
-    return;
-  }
+  /* A real Supabase-backed profile, shaped exactly like data.js's sample sailors so
+     the rest of this template needs no separate code path. Community-history
+     fields stay empty here on purpose — those only exist once the crew-request
+     loop is rebuilt on real accounts, and identity.verified stays false because
+     the database itself has no real verification to say otherwise yet. */
+  const fetchRealProfile = async (slug) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return null;
+    const { data: row, error } = await supa
+      .from("profiles")
+      .select(`
+        user_id, slug, name, photo_url, home_sailing_area, bio, sailing_since, identity_verified,
+        profile_sailing_types ( type ),
+        profile_roles ( role, note ),
+        profile_boats ( name, experience ),
+        profile_credentials ( issuer, name, year, detail )
+      `)
+      .eq("slug", slug)
+      .maybeSingle();
+    if (error || !row) return null;
+    return {
+      slug: row.slug,
+      userId: row.user_id,
+      name: row.name,
+      photo: row.photo_url || "",
+      heroPhoto: row.photo_url || "",
+      sailingArea: row.home_sailing_area || "",
+      bio: row.bio || "",
+      sailingSince: row.sailing_since || "",
+      types: row.profile_sailing_types.map((t) => t.type),
+      roles: row.profile_roles.map((r) => ({ name: r.role, note: r.note || "" })),
+      boats: row.profile_boats.map((b) => ({ name: b.name, experience: b.experience })),
+      credentials: row.profile_credentials.map((c) => ({ issuer: c.issuer, name: c.name, year: c.year, detail: c.detail || "" })),
+      verification: { identity: !!row.identity_verified },
+      confirmedSails: 0, repeatConnections: 0,
+      sailedWith: [], sailedWithMore: 0, feedback: [], recent: [],
+    };
+  };
+
+  (async () => {
+    const slug = new URLSearchParams(location.search).get("p") || data.currentUser;
+
+    let p = await fetchRealProfile(slug);
+    let isMine = false;
+
+    if (p) {
+      const session = window.CURRENT_AUTH ? await window.CURRENT_AUTH.getSession() : null;
+      isMine = !!session && session.user.id === p.userId;
+    } else {
+      p = data.profiles[slug];
+      /* Your own profile is the one the crew-request loop (loop.js) can change:
+         confirming a sail adds to your confirmed sails, recent sailing and sailed-with. */
+      if (p && p.slug === data.currentUser && window.CURRENT_LOOP) p = window.CURRENT_LOOP.overlayMe(p);
+      isMine = !!p && p.slug === data.currentUser;
+    }
+
+    if (!p) {
+      root.innerHTML = `
+        <div class="container"><div class="page-intro">
+          <p class="eyebrow">Sailing profile</p>
+          <h1 class="display-2">We could not find that profile.</h1>
+          <a class="link-arrow" href="find-a-sail.html">Find a sail <span>→</span></a>
+        </div></div>`;
+      return;
+    }
 
   const first = p.name.split(" ")[0];
-  const isMine = p.slug === data.currentUser;
   const person = (s) => data.profiles[s];
   const profileHref = (s) => `profile.html?p=${esc(s)}`;
   const src = {
@@ -220,4 +270,5 @@
     try { await navigator.clipboard.writeText(url); } catch (e) { /* prototype link only; show the copied state regardless */ }
     shareStatus.textContent = "Profile link copied ✓";
   });
+  })();
 })();

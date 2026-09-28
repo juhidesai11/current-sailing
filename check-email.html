@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Confirm your sail — CURRENT</title>
+  <title>Check your email — CURRENT</title>
   <meta name="theme-color" content="#0a2540">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,13 +11,26 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="marine.css">
 </head>
-<body data-page="confirm-sail" data-theme="marine">
+<body data-page="check-email" data-theme="marine">
 
   <header class="site-header" data-component="header"></header>
 
-  <!-- Rendered by loop.js. confirm-sail.html?id=<sail id> is the sailor's post-sail
-       confirmation: prototype only, simulating that the sail happened. -->
-  <main id="main" class="cr-shell" data-confirm-sail></main>
+  <main id="main" class="onboard">
+    <div class="container">
+      <div class="onboard__shell" data-check-email>
+        <div class="onboard__card">
+          <p class="eyebrow">CURRENT</p>
+          <h1>Check your email</h1>
+          <p class="onboard__lede">We sent you a verification link.<br>Verify your email to continue to CURRENT.</p>
+          <div class="onboard__fields">
+            <button class="btn btn--ghost" type="button" data-resend>Resend email</button>
+            <p class="small" role="status" aria-live="polite" data-status></p>
+            <p class="small auth-switch"><a href="login.html">Back to log in</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
 
   <footer class="site-footer" data-component="footer"></footer>
 
@@ -26,6 +39,6 @@
   <script src="supabase-client.js"></script>
   <script src="auth.js"></script>
   <script src="script.js"></script>
-  <script src="loop.js"></script>
+  <script src="auth-pages.js"></script>
 </body>
 </html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in — CURRENT</title>
+  <meta name="theme-color" content="#0a2540">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="marine.css">
+</head>
+<body data-page="login" data-theme="marine">
+
+  <header class="site-header" data-component="header"></header>
+
+  <main id="main" class="onboard">
+    <div class="container">
+      <div class="onboard__shell" data-login>
+        <div class="onboard__card">
+          <p class="eyebrow">CURRENT</p>
+          <h1>Welcome back</h1>
+          <form class="onboard__fields" data-login-form novalidate>
+            <label class="field"><span>Email</span><input type="email" data-f-email autocomplete="email" required></label>
+            <label class="field"><span>Password</span><input type="password" data-f-password autocomplete="current-password" required></label>
+            <p class="small field-error" data-form-error hidden></p>
+            <button class="btn" type="submit" data-submit>Log in</button>
+          </form>
+          <p class="small auth-switch"><a href="reset-password.html">Forgot password?</a></p>
+          <p class="small auth-switch">Don't have an account? <a href="signup.html">Sign up</a></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer" data-component="footer"></footer>
+
+  <script src="data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-client.js"></script>
+  <script src="auth.js"></script>
+  <script src="script.js"></script>
+  <script src="auth-pages.js"></script>
+</body>
+</html>
