@@ -160,6 +160,45 @@
     }
   };
 
+  /* Crew requests (real sails only) -----------------------------------------
+     Requests are never public — RLS only ever returns a signed-in user's own
+     request, or (for the sail's skipper) every request on that one sail. */
+
+  /* This signed-in user's own request for this sail, if they've made one. */
+  const fetchMyRequestForSail = async (sailId, userId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return null;
+    try {
+      const { data, error } = await supa
+        .from("sail_requests")
+        .select("id, status")
+        .eq("sail_id", sailId)
+        .eq("requester_user_id", userId)
+        .maybeSingle();
+      return error ? null : data;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  /* Every request against this sail — for the skipper's own "Crew requests"
+     section. Only ever called when the viewer already is that skipper; RLS
+     would return nothing otherwise regardless. */
+  const fetchRequestsForSail = async (sailId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return [];
+    try {
+      const { data, error } = await supa
+        .from("sail_requests")
+        .select("id, requester_user_id, note, status, created_at")
+        .eq("sail_id", sailId)
+        .order("created_at", { ascending: true });
+      return error || !data ? [] : data;
+    } catch (e) {
+      return [];
+    }
+  };
+
   /* Find a sail ----------------------------------------------------------- */
   const cardsEl = document.getElementById("cards");
   if (cardsEl) {
@@ -362,9 +401,29 @@
 
       /* Only a real sail has an owner at all; demo sails never show owner controls. */
       let isOwner = false;
+      let session = null;
       if (s.isReal && window.CURRENT_AUTH) {
-        const session = await window.CURRENT_AUTH.getSession();
+        session = await window.CURRENT_AUTH.getSession();
         isOwner = !!session && session.user.id === s.skipperUserId;
+      }
+
+      /* Real sails only: the viewer's own request status (non-owner), or every
+         request against this sail with its requester's real profile resolved
+         (owner) — same profile-shaping helper Phase 2 already uses for the
+         skipper, reused here since "a real person's profile" is the same
+         lookup either way. */
+      let myProfile = null, myRequest = null, ownerRequests = [];
+      if (s.isReal && isOwner) {
+        const rows = await fetchRequestsForSail(s.id);
+        const cache = new Map();
+        for (const r of rows) {
+          if (!cache.has(r.requester_user_id)) cache.set(r.requester_user_id, await fetchRealSkipperProfile(r.requester_user_id));
+          const profile = cache.get(r.requester_user_id);
+          if (profile) ownerRequests.push({ ...r, profile }); // no resolvable profile — skip rather than show a placeholder identity
+        }
+      } else if (s.isReal && session) {
+        myProfile = await fetchRealSkipperProfile(session.user.id);
+        if (myProfile) myRequest = await fetchMyRequestForSail(s.id, session.user.id);
       }
 
       const p = skipperOf(s);
@@ -413,9 +472,92 @@
         <p class="small field-error" data-close-error hidden></p>
         ${s.status === "closed" ? `<p class="small pf-muted">This sail is closed and no longer listed on Find a sail.</p>` : ""}`;
 
-      const requestActions = `
+      const demoRequestActions = `
         <button class="btn btn--lg detail__request" type="button" data-request></button>
         <p class="small" data-request-status hidden></p>`;
+
+      /* Real sails only: the request button reflects exactly what's true right
+         now — not signed in / no profile route straight to the right next
+         step; an existing request shows its real status, never a second
+         "Request to crew"; only a first-time, eligible requester gets the
+         live button that opens the modal. */
+      const REQUEST_STATUS_LABEL = { requested: "Requested", accepted: "Accepted", declined: "Declined" };
+      const canOpenRequestModal = s.isReal && !isOwner && !!myProfile && !myRequest;
+      const realRequestActions = !session
+        ? `<a class="btn btn--lg detail__request" href="login.html">Request to crew</a>`
+        : !myProfile
+        ? `<a class="btn btn--lg detail__request" href="create-profile.html">Request to crew</a>`
+        : myRequest
+        ? `<button class="btn btn--lg detail__request" type="button" disabled>${esc(REQUEST_STATUS_LABEL[myRequest.status])}</button>`
+        : `<button class="btn btn--lg detail__request" type="button" data-request>Request to crew <span aria-hidden="true">→</span></button>`;
+
+      const actionsHtml = isOwner ? ownerActions : s.isReal ? realRequestActions : demoRequestActions;
+
+      /* Owner's "Crew requests" section (real sails only) — a full-width
+         section below the main grid, since it can hold several requests.
+         Reuses .pf-feedback/.fb from profile.js's feedback list (already
+         designed for "a person + a short quote"), not a new component. */
+      const crewRequestsSection = !(s.isReal && isOwner) ? "" : `
+        <section class="pf-section pf-section--last" aria-labelledby="cr-requests-heading">
+          <div class="container">
+            <div class="pf-head"><h2 id="cr-requests-heading">Crew requests</h2></div>
+            ${ownerRequests.length ? `
+              <div class="pf-feedback">
+                ${ownerRequests.map((r) => `
+                  <article class="fb">
+                    ${avatar(r.profile, "avatar--fb")}
+                    <div>
+                      <p class="fb__who"><a href="profile.html?p=${esc(r.profile.slug)}">${esc(r.profile.name)}</a></p>
+                      <p class="fb__ctx">${esc(r.profile.sailingArea)}</p>
+                      ${r.note ? `<p class="fb__quote">“${esc(r.note)}”</p>` : ""}
+                      <p class="fb__foot">
+                        ${r.status === "requested"
+                          ? `<span class="cr-actions"><button class="btn btn--ghost" type="button" data-decline="${esc(r.id)}">Decline</button><button class="btn" type="button" data-accept="${esc(r.id)}">Accept</button></span>`
+                          : `<span>${esc(REQUEST_STATUS_LABEL[r.status])}</span>`}
+                      </p>
+                    </div>
+                  </article>`).join("")}
+              </div>` : `<div class="pf-empty"><p>No crew requests yet.</p></div>`}
+            <p class="small field-error" data-requests-error hidden></p>
+          </div>
+        </section>`;
+
+      /* Real, non-demo "Request to crew" modal — only built when there's a
+         live button to open it. Uses the requester's own real profile, never
+         the demo "me" persona loop.js uses for demo sails. */
+      const realModal = !canOpenRequestModal ? "" : `
+        <dialog class="modal" aria-labelledby="modal-title">
+          <div class="modal__panel" data-state="form">
+            <p class="label">Request to crew</p>
+            <h2 class="modal__title" id="modal-title">${esc(s.title)}</h2>
+            <p class="small">${esc(s.boat)} · ${esc(s.location)} · ${esc(when)}</p>
+            <p class="modal__lede">${esc(first)} will receive your CURRENT profile with this request.</p>
+            <div class="modal__me">
+              ${avatar(myProfile, "avatar--sm")}
+              <div>
+                <p class="modal__me-name">${esc(myProfile.name)}${myProfile.verification?.identity ? verifiedTick() : ""}</p>
+                <p class="modal__me-meta">${esc(myProfile.sailingArea)} · ${myProfile.confirmedSails} confirmed sails · ${myProfile.repeatConnections} repeat connections</p>
+                <p class="modal__me-meta">Roles: ${myProfile.roles.map((r) => esc(r.name)).join(", ") || "Not specified"}</p>
+              </div>
+            </div>
+            <label class="field">
+              <span>Add a note (optional)</span>
+              <textarea data-note rows="3" placeholder="Anything you want ${esc(first)} to know?"></textarea>
+            </label>
+            <p class="small field-error" data-request-error hidden></p>
+            <div class="modal__actions">
+              <a class="btn btn--ghost" href="profile.html?p=${esc(myProfile.slug)}" target="_blank" rel="noopener">Preview my profile</a>
+              <button class="btn" type="button" data-send autofocus>Send request</button>
+            </div>
+          </div>
+          <div class="modal__panel" data-state="sent" hidden>
+            <h2 class="modal__title" id="modal-sent">Request sent</h2>
+            <p class="modal__lede">${esc(first)} will see your CURRENT profile and can accept or decline your request.</p>
+            <div class="modal__actions">
+              <button class="btn" type="button" data-done>Done</button>
+            </div>
+          </div>
+        </dialog>`;
 
       detailEl.innerHTML = `
         <div class="container">
@@ -450,7 +592,7 @@
                   <div><dd>${esc(s.crewNeeded)}</dd><dt>Crew needed</dt></div>
                   <div><dd>${s.positions.map(esc).join(" · ")}</dd><dt>Positions</dt></div>
                 </dl>
-                ${isOwner ? ownerActions : requestActions}
+                ${actionsHtml}
               </div>
               ${skipperPreview(p)}
             </div>
@@ -458,7 +600,9 @@
           </div>
         </div>
 
-        ${isOwner ? "" : `
+        ${crewRequestsSection}
+
+        ${s.isReal ? realModal : `
         <dialog class="modal" aria-labelledby="modal-title">
           <div class="modal__panel" data-state="form">
             <p class="label">Request to crew</p>
@@ -511,11 +655,74 @@
           }
           location.reload();
         });
+
+        /* Accept / decline a crew request. RLS (skipper owns the referenced
+           sail), not this check, is what actually authorizes the update. */
+        const requestsError = detailEl.querySelector("[data-requests-error]");
+        const updateRequestStatus = async (requestId, status) => {
+          if (requestsError) requestsError.hidden = true;
+          const { error } = await window.CURRENT_SUPABASE.from("sail_requests").update({ status }).eq("id", requestId);
+          if (error) {
+            console.error("Update crew request failed:", error);
+            if (requestsError) { requestsError.textContent = "Could not update this request. Please try again."; requestsError.hidden = false; }
+            return;
+          }
+          location.reload();
+        };
+        detailEl.querySelectorAll("[data-accept]").forEach((b) => b.addEventListener("click", () => updateRequestStatus(b.dataset.accept, "accepted")));
+        detailEl.querySelectorAll("[data-decline]").forEach((b) => b.addEventListener("click", () => updateRequestStatus(b.dataset.decline, "declined")));
         return;
       }
 
-      /* Request to crew interaction. State lives in loop.js (localStorage), so it
-         survives navigating to the crew-request and confirm-sail screens and back. */
+      /* Real sails: Request to crew, backed by public.sail_requests. Only
+         wired up when there's actually a live button + modal to wire — a
+         logged-out visitor, someone without a profile, or someone who has
+         already requested sees a plain link or a disabled status button
+         instead (built into actionsHtml above), nothing to wire here. */
+      if (s.isReal) {
+        if (canOpenRequestModal) {
+          const modal = detailEl.querySelector(".modal");
+          const reqBtn = detailEl.querySelector("[data-request]");
+          const sendBtn = modal.querySelector("[data-send]");
+          const requestError = modal.querySelector("[data-request-error]");
+          const showState = (name) => modal.querySelectorAll("[data-state]").forEach((el) => { el.hidden = el.dataset.state !== name; });
+          let sent = false;
+
+          reqBtn.addEventListener("click", () => { showState("form"); modal.showModal(); });
+
+          sendBtn.addEventListener("click", async () => {
+            const note = modal.querySelector("[data-note]").value.trim();
+            requestError.hidden = true;
+            sendBtn.disabled = true;
+            const { error } = await window.CURRENT_SUPABASE
+              .from("sail_requests")
+              .insert({ sail_id: s.id, requester_user_id: session.user.id, note: note || null, status: "requested" });
+            sendBtn.disabled = false;
+            if (error) {
+              console.error("Request to crew failed:", error);
+              if (error.code === "23505") requestError.textContent = "You've already requested to crew on this sail.";
+              else if (error.code === "42501" || /row-level security|permission denied/i.test(error.message || "")) requestError.textContent = "You don't have permission to do that.";
+              else requestError.textContent = "Could not send your request. Please try again.";
+              requestError.hidden = false;
+              return;
+            }
+            sent = true;
+            showState("sent");
+          });
+
+          /* Only reload (to reflect the new "Requested" status) if a request
+             was actually sent — an accidental close beforehand shouldn't
+             refresh the page for no reason. */
+          const closeModal = () => { if (sent) location.reload(); else modal.close(); };
+          modal.querySelector("[data-done]").addEventListener("click", closeModal);
+          modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+        }
+        return;
+      }
+
+      /* Demo sails: request to crew interaction. State lives in loop.js
+         (localStorage), so it survives navigating to the crew-request and
+         confirm-sail screens and back. */
       const modal = detailEl.querySelector(".modal");
       const reqBtn = detailEl.querySelector("[data-request]");
       const statusEl = detailEl.querySelector("[data-request-status]");

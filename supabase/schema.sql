@@ -385,3 +385,123 @@ grant insert, update, delete on public.profile_sailing_types, public.profile_rol
 -- No delete grant — there is no delete policy, and sails are closed, not deleted.
 grant select on public.sails to anon, authenticated;
 grant insert, update on public.sails to authenticated;
+
+
+-- =============================================================================
+-- 7. CREW REQUESTS (Phase 3)
+-- A crew request against a real, Supabase-backed sail. Never public — only
+-- the requester and the sail's own skipper can ever see a given row. Demo
+-- sails keep using loop.js's separate localStorage prototype; this table is
+-- for real sails only.
+-- =============================================================================
+
+create table if not exists public.sail_requests (
+  id                  uuid primary key default gen_random_uuid(),
+  sail_id             uuid not null references public.sails (id) on delete cascade,
+  requester_user_id   uuid not null references auth.users (id) on delete cascade,
+  note                text,
+  status              text not null default 'requested' check (status in ('requested', 'accepted', 'declined')),
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  unique (sail_id, requester_user_id) -- one request per sailor per sail
+);
+
+-- No separate sail_id index: the unique constraint above already creates one
+-- whose leading column is sail_id, which covers "requests for this sail"
+-- lookups. This one covers "this user's requests" lookups instead.
+create index if not exists sail_requests_requester_user_id_idx on public.sail_requests (requester_user_id);
+
+drop trigger if exists set_updated_at on public.sail_requests;
+create trigger set_updated_at
+  before update on public.sail_requests
+  for each row execute function public.set_updated_at();
+
+-- A skipper's update policy (below) lets them update a request row at all,
+-- but RLS is row-level, not column-level — nothing stops that same policy
+-- from also being used to rewrite the note or reassign the request to a
+-- different sail/requester. This pins every column except `status` (and the
+-- auto-managed `updated_at`) to its existing value on every update, no
+-- matter who's updating — the same defense-in-depth approach already used
+-- for identity_verified above.
+create or replace function public.protect_sail_request_fields()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.sail_id := old.sail_id;
+  new.requester_user_id := old.requester_user_id;
+  new.note := old.note;
+  new.created_at := old.created_at;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_sail_request_fields on public.sail_requests;
+create trigger protect_sail_request_fields
+  before update on public.sail_requests
+  for each row execute function public.protect_sail_request_fields();
+
+alter table public.sail_requests enable row level security;
+
+-- Requester creates their own request — and only for a real, OPEN sail they
+-- don't own, only with status 'requested' (a client could otherwise insert
+-- straight in as 'accepted' — the column default only applies when the
+-- client omits the field, not when it explicitly sends another value), and
+-- only if they have a completed CURRENT profile. All of this is enforced
+-- here, at the database layer — not just by what the UI happens to send.
+drop policy if exists "requesters can create their own request" on public.sail_requests;
+create policy "requesters can create their own request"
+  on public.sail_requests for insert
+  to authenticated
+  with check (
+    auth.uid() = requester_user_id
+    and sail_requests.status = 'requested'
+    and exists (
+      select 1 from public.sails
+      where sails.id = sail_requests.sail_id
+        and sails.status = 'open'
+        and sails.skipper_user_id <> auth.uid()
+    )
+    and exists (select 1 from public.profiles where profiles.user_id = auth.uid())
+  );
+
+-- Requester reads only their own request row.
+drop policy if exists "requesters can read their own request" on public.sail_requests;
+create policy "requesters can read their own request"
+  on public.sail_requests for select
+  to authenticated
+  using (auth.uid() = requester_user_id);
+
+-- Skipper reads every request against their own sail.
+drop policy if exists "skippers can read requests for their own sails" on public.sail_requests;
+create policy "skippers can read requests for their own sails"
+  on public.sail_requests for select
+  to authenticated
+  using (exists (
+    select 1 from public.sails
+    where sails.id = sail_requests.sail_id
+      and sails.skipper_user_id = auth.uid()
+  ));
+
+-- Skipper updates (status only, enforced by the trigger above) requests
+-- against their own sail. There is deliberately no update policy for the
+-- requester at all — not a restricted one, none — so RLS's default-deny
+-- means a requester can never change a request's status, full stop.
+drop policy if exists "skippers can update requests for their own sails" on public.sail_requests;
+create policy "skippers can update requests for their own sails"
+  on public.sail_requests for update
+  to authenticated
+  using (exists (
+    select 1 from public.sails
+    where sails.id = sail_requests.sail_id
+      and sails.skipper_user_id = auth.uid()
+  ))
+  with check (exists (
+    select 1 from public.sails
+    where sails.id = sail_requests.sail_id
+      and sails.skipper_user_id = auth.uid()
+  ));
+
+-- No anon grant — requests are never public. No delete grant — there is no
+-- delete policy, and closing a sail never deletes its requests.
+grant select, insert, update on public.sail_requests to authenticated;
