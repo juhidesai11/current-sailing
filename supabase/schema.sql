@@ -346,3 +346,34 @@ alter table public.profiles add constraint profiles_sailing_since_check
 alter table public.profile_credentials drop constraint if exists profile_credentials_year_check;
 alter table public.profile_credentials add constraint profile_credentials_year_check
   check (year is null or year between 1900 and extract(year from now())::int);
+
+
+-- =============================================================================
+-- 6. GRANTS
+-- RLS policies (section 4) decide which ROWS anon/authenticated can touch,
+-- but only once a role already has base table access — without the grants
+-- below, Postgres rejects the query before RLS is even evaluated ("42501
+-- permission denied for table ..."), no matter what policies exist. A plain
+-- CREATE TABLE run through the SQL Editor (how this file is run) does not
+-- grant this automatically the way creating a table via the Table Editor
+-- UI does, so it has to be done explicitly here. Each grant below matches
+-- exactly what that table's policies above already allow — nothing broader.
+-- =============================================================================
+
+-- Usually already granted by default on a Supabase project; included here
+-- only so a fresh project set up purely from this file doesn't depend on it.
+grant usage on schema public to anon, authenticated;
+
+-- profiles: publicly readable; only the owner can insert/update (matches
+-- "profiles are publicly readable" / "users can create their own profile" /
+-- "users can edit their own profile" — there is no delete policy, so no
+-- delete grant here either).
+grant select on public.profiles to anon, authenticated;
+grant insert, update on public.profiles to authenticated;
+
+-- profile_sailing_types, profile_roles, profile_boats, profile_credentials:
+-- publicly readable; only the owning profile's user can insert/update/delete
+-- (matches each table's "... are publicly readable" / "users manage their
+-- own ..." policies).
+grant select on public.profile_sailing_types, public.profile_roles, public.profile_boats, public.profile_credentials to anon, authenticated;
+grant insert, update, delete on public.profile_sailing_types, public.profile_roles, public.profile_boats, public.profile_credentials to authenticated;
