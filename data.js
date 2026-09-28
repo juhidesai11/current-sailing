@@ -308,16 +308,9 @@ window.CURRENT_DATA.sails = [
   },
 ];
 
-/* The sailor the prototype treats as "you" when requesting to crew. */
+/* The sailor the DEMO crew-request loop (loop.js) treats as "you" — a fixed
+   prototype persona, not a real account. This is never overridden and must
+   never be used to determine a real signed-in user's identity: real identity
+   always comes from Supabase auth (window.CURRENT_AUTH.getSession() /
+   getMyProfile()), never from this constant. */
 window.CURRENT_DATA.currentUser = "juhi-desai";
-
-/* A profile made through Create profile (create-profile.js) replaces "you". It starts
-   with zero confirmed sails, no sailed-with and no feedback — genuinely new, not
-   pre-populated — and grows only through the crew-request loop (loop.js) from there. */
-try {
-  const mine = JSON.parse(localStorage.getItem("current.myProfile"));
-  if (mine && mine.slug) {
-    window.CURRENT_DATA.profiles[mine.slug] = mine;
-    window.CURRENT_DATA.currentUser = mine.slug;
-  }
-} catch (e) { /* ignore */ }

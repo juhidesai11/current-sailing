@@ -53,13 +53,28 @@
   };
 
   (async () => {
-    const slug = new URLSearchParams(location.search).get("p") || data.currentUser;
+    const session = window.CURRENT_AUTH ? await window.CURRENT_AUTH.getSession() : null;
+    const paramSlug = new URLSearchParams(location.search).get("p");
+
+    /* Supabase auth is the single source of truth for "who am I": an explicit
+       ?p= always wins (viewing anyone's profile), otherwise a real session
+       always resolves to MY real profile — never the demo persona — and only
+       a genuinely logged-out visitor falls back to the fixed demo profile. */
+    let slug;
+    if (paramSlug) {
+      slug = paramSlug;
+    } else if (session) {
+      const myProfile = await window.CURRENT_AUTH.getMyProfile();
+      if (!myProfile) { location.href = "create-profile.html"; return; }
+      slug = myProfile.slug;
+    } else {
+      slug = data.currentUser;
+    }
 
     let p = await fetchRealProfile(slug);
     let isMine = false;
 
     if (p) {
-      const session = window.CURRENT_AUTH ? await window.CURRENT_AUTH.getSession() : null;
       isMine = !!session && session.user.id === p.userId;
     } else {
       p = data.profiles[slug];
