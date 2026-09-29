@@ -52,6 +52,46 @@
     };
   };
 
+  /* Profile dashboard (real, signed-in owner only) --------------------------
+     Every real crew request this user has made, sail details embedded via
+     the FK. The "requesters can read sails they've requested" policy is what
+     keeps that embed populated even after the skipper closes the sail. */
+  const fetchMyRequests = async (userId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return [];
+    try {
+      const { data, error } = await supa
+        .from("sail_requests")
+        .select("id, status, created_at, sails ( id, title, sail_date, location, status )")
+        .eq("requester_user_id", userId)
+        .order("created_at", { ascending: false });
+      if (error || !data) return [];
+      return data.filter((r) => r.sails); // no resolvable sail — skip rather than show a broken row
+    } catch (e) {
+      return [];
+    }
+  };
+
+  /* Every real sail this user skippers, with a cheap crew-request count via
+     the same embed (just counting ids — no separate aggregate query). */
+  const fetchMySails = async (userId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return [];
+    try {
+      const { data, error } = await supa
+        .from("sails")
+        .select("id, title, sail_date, location, status, sail_requests ( id )")
+        .eq("skipper_user_id", userId)
+        .order("sail_date", { ascending: false });
+      return error || !data ? [] : data;
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const REQUEST_STATUS_LABEL = { requested: "Requested", accepted: "Accepted", declined: "Declined" };
+  const fmtShortDate = (dateStr) => new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   (async () => {
     const session = window.CURRENT_AUTH ? await window.CURRENT_AUTH.getSession() : null;
     const paramSlug = new URLSearchParams(location.search).get("p");
@@ -93,6 +133,16 @@
         </div></div>`;
       return;
     }
+
+    /* My requests / My sails: only ever shown on your own REAL profile, while
+       actually signed in as that account. p.userId only exists on a real
+       Supabase profile — the demo persona never has one, even when isMine is
+       true for a logged-out visitor — so this can never show on a demo
+       profile or on someone else's real one. */
+    const showDashboard = isMine && !!p.userId;
+    const [myRequests, mySails] = showDashboard
+      ? await Promise.all([fetchMyRequests(p.userId), fetchMySails(p.userId)])
+      : [[], []];
 
   const first = p.name.split(" ")[0];
   const person = (s) => data.profiles[s];
@@ -244,7 +294,7 @@
     </section>
 
     <!-- WHAT HAVE THEY DONE RECENTLY? -->
-    <section class="pf-section pf-section--last" aria-labelledby="pf-recent">
+    <section class="pf-section${showDashboard ? "" : " pf-section--last"}" aria-labelledby="pf-recent">
       <div class="container">
         <div class="pf-head"><h2 id="pf-recent">Recent sailing</h2>${src.community}</div>
         <ul class="pf-recent">
@@ -258,7 +308,7 @@
       </div>
     </section>` : `
     <!-- A brand-new profile has no CURRENT-generated history yet: no fake activity. -->
-    <section class="pf-section pf-section--last" aria-labelledby="pf-recent">
+    <section class="pf-section${showDashboard ? "" : " pf-section--last"}" aria-labelledby="pf-recent">
       <div class="container">
         <div class="pf-head"><h2 id="pf-recent">Sailing history</h2>${src.community}</div>
         <div class="pf-empty">
@@ -268,6 +318,55 @@
             : `<p>${esc(first)}’s CURRENT history starts when ${esc(first)} sails with people through CURRENT.</p>
                <p class="pf-muted">After a sail, both sailors can confirm that they sailed together.</p>`}
         </div>
+      </div>
+    </section>`}
+
+    ${!showDashboard ? "" : `
+    <!-- MY REQUESTS: every real crew request I've made, whatever its status. -->
+    <section class="pf-section" aria-labelledby="pf-my-requests">
+      <div class="container">
+        <div class="pf-head"><h2 id="pf-my-requests">My requests</h2></div>
+        ${myRequests.length ? `
+          <div class="pf-creds">
+            ${myRequests.map((r) => `
+              <div class="pf-cred">
+                <div>
+                  <p class="pf-cred__issuer"><a href="sail.html?id=${esc(r.sails.id)}">${esc(r.sails.title)}</a></p>
+                  <p class="pf-muted">${esc(fmtShortDate(r.sails.sail_date))} · ${esc(r.sails.location)}${r.sails.status === "closed" ? " · Closed" : ""}</p>
+                </div>
+                <span class="src${r.status === "accepted" ? " src--community" : ""}">${esc(REQUEST_STATUS_LABEL[r.status])}</span>
+              </div>`).join("")}
+          </div>` : `
+          <div class="pf-empty">
+            <p>You haven't requested to crew on any sails yet.</p>
+            <p class="pf-muted"><a class="link-arrow" href="find-a-sail.html">Find a sail <span aria-hidden="true">→</span></a></p>
+          </div>`}
+      </div>
+    </section>
+
+    <!-- MY SAILS: every real sail I skipper. -->
+    <section class="pf-section pf-section--last" aria-labelledby="pf-my-sails">
+      <div class="container">
+        <div class="pf-head"><h2 id="pf-my-sails">My sails</h2></div>
+        ${mySails.length ? `
+          <div class="pf-creds">
+            ${mySails.map((s) => `
+              <div class="pf-cred">
+                <div>
+                  <p class="pf-cred__issuer"><a href="sail.html?id=${esc(s.id)}">${esc(s.title)}</a></p>
+                  <p class="pf-muted">${esc(fmtShortDate(s.sail_date))} · ${esc(s.location)}${s.sail_requests.length ? ` · ${s.sail_requests.length} crew ${s.sail_requests.length === 1 ? "request" : "requests"}` : ""}</p>
+                </div>
+                <div class="pf-cred__actions">
+                  <span class="src${s.status === "open" ? " src--community" : ""}">${s.status === "open" ? "Open" : "Closed"}</span>
+                  <a href="sail.html?id=${esc(s.id)}">View</a>
+                  <a href="post-sail.html?id=${esc(s.id)}">Edit</a>
+                </div>
+              </div>`).join("")}
+          </div>` : `
+          <div class="pf-empty">
+            <p>You haven't posted a sail yet.</p>
+            <p class="pf-muted"><a class="link-arrow" href="post-sail.html">Post a sail <span aria-hidden="true">→</span></a></p>
+          </div>`}
       </div>
     </section>`}`;
 

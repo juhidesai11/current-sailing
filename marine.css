@@ -461,6 +461,11 @@ body[data-theme="marine"] {
 .pf-cred { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1rem 1.1rem; background: #fff; border: 1px solid var(--rule); border-radius: 6px; font-size: 0.9375rem; }
 .pf-cred__issuer { font-weight: 800; }
 
+/* My sails (profile dashboard, "My sails" section): status badge stacked
+   above View/Edit, reusing .pf-cred's row for each sail. */
+.pf-cred__actions { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; flex: none; }
+.pf-cred__actions a { font-size: 0.8125rem; font-weight: 600; color: var(--sky); text-decoration: underline; text-underline-offset: 3px; }
+
 .pf-mates { display: flex; justify-content: space-between; gap: clamp(1rem, 3vw, 2rem); overflow-x: auto; padding-bottom: 0.75rem; scrollbar-width: thin; }
 .pf-mate { display: grid; justify-items: center; gap: 0.15rem; width: 7.5rem; text-align: center; text-decoration: none; color: inherit; }
 .avatar--pf { width: 5.5rem; font-size: 1.3rem; transition: box-shadow 0.2s; }
