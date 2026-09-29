@@ -304,9 +304,11 @@ create policy "users manage their own credentials"
 -- ---- sails --------------------------------------------------------------
 -- Two separate SELECT policies (Postgres OR's them together): the public can
 -- see OPEN listings; a skipper can always see their own sail, open or closed.
--- (A third — a requester can see a sail they've requested — is added in
--- section 7 below, once sail_requests exists to reference.) Only the skipper
--- who created a sail can edit it or change its status.
+-- Only the skipper who created a sail can edit it or change its status.
+--
+-- (A "requesters can read sails they've requested" policy was tried here and
+-- removed — it caused infinite recursion between sails and sail_requests RLS
+-- and broke Post a Sail. Do not re-add it without solving that.)
 
 drop policy if exists "open sails are publicly readable" on public.sails;
 create policy "open sails are publicly readable"
@@ -507,19 +509,3 @@ create policy "skippers can update requests for their own sails"
 -- No anon grant — requests are never public. No delete grant — there is no
 -- delete policy, and closing a sail never deletes its requests.
 grant select, insert, update on public.sail_requests to authenticated;
-
--- Third sails SELECT policy (see section 4's note): a requester can always
--- read a sail they've requested, even after the skipper closes it — added
--- for "My requests" on the profile dashboard (Phase 4), so a request never
--- loses its sail's title/date/location. Select-only; no change to sails'
--- insert/update policies, and this table's existing grants already cover it
--- (grant select on public.sails ... was added in section 6).
-drop policy if exists "requesters can read sails they've requested" on public.sails;
-create policy "requesters can read sails they've requested"
-  on public.sails for select
-  to authenticated
-  using (exists (
-    select 1 from public.sail_requests
-    where sail_requests.sail_id = sails.id
-      and sail_requests.requester_user_id = auth.uid()
-  ));
