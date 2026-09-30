@@ -509,3 +509,259 @@ create policy "skippers can update requests for their own sails"
 -- No anon grant — requests are never public. No delete grant — there is no
 -- delete policy, and closing a sail never deletes its requests.
 grant select, insert, update on public.sail_requests to authenticated;
+
+
+-- =============================================================================
+-- 8. PERMANENT SAILING HISTORY (Phase 4)
+--
+-- Product principle: sail_requests is temporary workflow data (a request gets
+-- accepted or declined and that's the end of its story). This section adds
+-- the PERMANENT record: once a request is accepted, a sail_participations
+-- row is created to represent "these two people were connected through this
+-- sail and may confirm they actually sailed together." Once BOTH confirm, it
+-- becomes real, public, permanent trust history — confirmed sails, sailed
+-- with, repeat connections, recent sailing — calculated at read time, never
+-- stored as counters.
+--
+-- Every field sail_participations needs to render or gate itself is
+-- snapshotted onto the row at creation time (title/boat/location/date/time/
+-- timezone) rather than joined live from `sails`. This is deliberate, not
+-- redundant: a non-skipper party has no RLS path to read a `sails` row once
+-- it's closed, and a public profile viewer (neither party at all) never has
+-- one — so a live join would silently break history the moment a sail is
+-- closed, which directly contradicts "permanent." Snapshotting makes this
+-- table fully self-contained, which is also what keeps its RLS free of any
+-- reference to `sails` or `sail_requests` at all (see the recursion note at
+-- the end of this section).
+-- =============================================================================
+
+-- Every sail needs a timezone for "has this sail happened yet" to mean
+-- anything precise. Bay Area sails default here; nothing in this schema
+-- limits CURRENT to one timezone going forward — there's just no picker UI
+-- for it yet (Post a Sail doesn't ask, so every new sail gets the default).
+alter table public.sails
+  add column if not exists timezone text not null default 'America/Los_Angeles';
+alter table public.sails
+  drop constraint if exists sails_timezone_not_blank;
+alter table public.sails
+  add constraint sails_timezone_not_blank check (length(timezone) > 0);
+
+-- ---- factual, permanent history ---------------------------------------------
+-- Contains ONLY safe, factual fields — no private response data at all (see
+-- sail_participation_responses below) — so "confirmed rows are public" can be
+-- a plain, obviously-safe policy with nothing to leak.
+create table if not exists public.sail_participations (
+  id                    uuid primary key default gen_random_uuid(),
+  sail_id               uuid references public.sails (id) on delete set null,
+  skipper_user_id       uuid not null references auth.users (id) on delete cascade,
+  crew_user_id          uuid not null references auth.users (id) on delete cascade,
+  sail_title            text not null,
+  sail_boat             text not null,
+  sail_location         text not null,
+  sail_date             date not null,
+  sail_start_time       time not null,
+  sail_timezone         text not null,
+  skipper_confirmed     boolean not null default false,
+  crew_confirmed        boolean not null default false,
+  skipper_confirmed_at  timestamptz,
+  crew_confirmed_at     timestamptz,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now(),
+  unique (sail_id, crew_user_id)
+);
+
+create index if not exists sail_participations_crew_user_id_idx    on public.sail_participations (crew_user_id);
+create index if not exists sail_participations_skipper_user_id_idx on public.sail_participations (skipper_user_id);
+
+drop trigger if exists set_updated_at on public.sail_participations;
+create trigger set_updated_at
+  before update on public.sail_participations
+  for each row execute function public.set_updated_at();
+
+-- ---- private, directional responses -----------------------------------------
+-- One row PER RESPONDER, not per participation — so "can I read the other
+-- person's answer" isn't a policy condition to get right, it's structurally
+-- impossible: their answer is a different row belonging to a different
+-- responder_user_id that this policy will never match. Never public, ever.
+create table if not exists public.sail_participation_responses (
+  id                 uuid primary key default gen_random_uuid(),
+  participation_id   uuid not null references public.sail_participations (id) on delete cascade,
+  responder_user_id  uuid not null references auth.users (id) on delete cascade,
+  would_sail_again   text not null check (would_sail_again in ('yes', 'not_sure')),
+  created_at         timestamptz not null default now(),
+  unique (participation_id, responder_user_id)
+);
+
+-- ---- creating a participation: only ever a reaction to a real accept -------
+-- security definer so it can read `sails` (bypassing RLS — not a policy, so
+-- this cannot participate in an RLS recursion cycle) and write
+-- sail_participations regardless of the accepting skipper's own grants.
+-- authenticated has NO insert grant on sail_participations at all (below) —
+-- this function is the only door.
+create or replace function public.create_sail_participation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  sail_row public.sails;
+begin
+  if new.status = 'accepted' and old.status is distinct from 'accepted' then
+    select * into sail_row from public.sails where id = new.sail_id;
+    if sail_row.id is not null then
+      insert into public.sail_participations
+        (sail_id, skipper_user_id, crew_user_id, sail_title, sail_boat, sail_location, sail_date, sail_start_time, sail_timezone)
+      values
+        (sail_row.id, sail_row.skipper_user_id, new.requester_user_id, sail_row.title, sail_row.boat, sail_row.location, sail_row.sail_date, sail_row.start_time, sail_row.timezone)
+      on conflict (sail_id, crew_user_id) do nothing;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+-- Belt-and-suspenders: Postgres blocks calling a trigger-returning function
+-- directly anyway ("trigger functions can only be called as triggers"), and
+-- firing a trigger never checks EXECUTE privilege on its function — but
+-- CREATE FUNCTION grants EXECUTE to PUBLIC by default, and this phase isn't
+-- relying on default privileges for anything else, so this shouldn't either.
+revoke all on function public.create_sail_participation() from public;
+
+drop trigger if exists create_sail_participation on public.sail_requests;
+create trigger create_sail_participation
+  after update on public.sail_requests
+  for each row execute function public.create_sail_participation();
+
+-- ---- confirming: one atomic, server-authored RPC ---------------------------
+-- The browser supplies only participation_id and would_sail_again. Identity
+-- comes from auth.uid(); confirmed_at is always now(); which side gets
+-- updated is decided here, never by a client-supplied flag. authenticated has
+-- NO update grant on sail_participations or insert grant on
+-- sail_participation_responses at all — this function is the only door, so
+-- there is no direct-write path left for a protective trigger to guard.
+create or replace function public.confirm_sail_participation(
+  p_participation_id uuid,
+  p_would_sail_again text
+) returns public.sail_participations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  part public.sail_participations;
+  sail_happens_at timestamptz;
+begin
+  if p_would_sail_again is null then
+    raise exception 'Choose whether you would sail together again.' using errcode = '22004';
+  elsif p_would_sail_again not in ('yes', 'not_sure') then
+    raise exception 'Invalid would_sail_again value.' using errcode = '22023';
+  end if;
+
+  select * into part from public.sail_participations where id = p_participation_id;
+  if part.id is null then
+    raise exception 'Participation not found.' using errcode = 'P0002';
+  end if;
+
+  if auth.uid() <> part.skipper_user_id and auth.uid() <> part.crew_user_id then
+    raise exception 'Not authorized to confirm this sail.' using errcode = '42501';
+  end if;
+
+  sail_happens_at := (part.sail_date + part.sail_start_time) at time zone part.sail_timezone;
+  if sail_happens_at > now() then
+    raise exception 'This sail has not happened yet.' using errcode = 'P0001';
+  end if;
+
+  if auth.uid() = part.crew_user_id then
+    if part.crew_confirmed then
+      raise exception 'You have already confirmed this sail.' using errcode = 'P0001';
+    end if;
+    update public.sail_participations set crew_confirmed = true, crew_confirmed_at = now()
+      where id = p_participation_id returning * into part;
+  else
+    if part.skipper_confirmed then
+      raise exception 'You have already confirmed this sail.' using errcode = 'P0001';
+    end if;
+    update public.sail_participations set skipper_confirmed = true, skipper_confirmed_at = now()
+      where id = p_participation_id returning * into part;
+  end if;
+
+  insert into public.sail_participation_responses (participation_id, responder_user_id, would_sail_again)
+  values (p_participation_id, auth.uid(), p_would_sail_again)
+  on conflict (participation_id, responder_user_id) do nothing;
+
+  return part;
+end;
+$$;
+
+-- Explicit, not assumed: revoke the default PUBLIC execute grant before
+-- granting only to authenticated. anon has no reason to ever call this.
+revoke all on function public.confirm_sail_participation(uuid, text) from public;
+revoke all on function public.confirm_sail_participation(uuid, text) from anon;
+grant execute on function public.confirm_sail_participation(uuid, text) to authenticated;
+
+-- ---- RLS ---------------------------------------------------------------------
+alter table public.sail_participations enable row level security;
+alter table public.sail_participation_responses enable row level security;
+
+drop policy if exists "parties can read their own participation" on public.sail_participations;
+create policy "parties can read their own participation"
+  on public.sail_participations for select
+  to authenticated
+  using (auth.uid() = skipper_user_id or auth.uid() = crew_user_id);
+
+-- Self-contained condition — no join to sails or sail_requests — so this can
+-- never participate in an RLS recursion cycle with either of those tables.
+drop policy if exists "confirmed participations are publicly readable" on public.sail_participations;
+create policy "confirmed participations are publicly readable"
+  on public.sail_participations for select
+  to public
+  using (skipper_confirmed = true and crew_confirmed = true);
+
+drop policy if exists "responder can read their own response" on public.sail_participation_responses;
+create policy "responder can read their own response"
+  on public.sail_participation_responses for select
+  to authenticated
+  using (auth.uid() = responder_user_id);
+
+-- No update/insert policy on either table: authenticated has no update or
+-- insert grant on them at all (below), so there is nothing such a policy
+-- would authorize. The only writers are the two security-definer functions
+-- above, which bypass RLS by design.
+
+-- ---- GRANTs --------------------------------------------------------------
+-- Factual history: publicly readable once confirmed (anon needed for that
+-- public policy to apply at all). No insert/update/delete grant to anyone —
+-- writes only happen through the security-definer functions above.
+grant select on public.sail_participations to anon, authenticated;
+
+-- Private responses: never public, no anon grant. No insert/update grant —
+-- the confirmation RPC is the only writer.
+grant select on public.sail_participation_responses to authenticated;
+
+-- ---- one-time backfill for requests accepted before this table existed ----
+-- Safe to re-run: matches the exact same snapshot the trigger above takes,
+-- and ON CONFLICT DO NOTHING means an already-backfilled (or since normally
+-- created) row is left untouched, never duplicated. Does not touch
+-- sail_requests.status. Every snapshotted column here is NOT NULL on `sails`
+-- already (title/boat/location/sail_date/start_time) or was just backfilled
+-- with a default by the ALTER TABLE above (timezone) — so this can't fail on
+-- an unexpectedly null source column.
+insert into public.sail_participations
+  (sail_id, skipper_user_id, crew_user_id, sail_title, sail_boat, sail_location, sail_date, sail_start_time, sail_timezone)
+select
+  sr.sail_id, s.skipper_user_id, sr.requester_user_id,
+  s.title, s.boat, s.location, s.sail_date, s.start_time, s.timezone
+from public.sail_requests sr
+join public.sails s on s.id = sr.sail_id
+where sr.status = 'accepted'
+on conflict (sail_id, crew_user_id) do nothing;
+
+-- ---- recursion note ----------------------------------------------------------
+-- sails: self-contained. sail_requests: references sails only (one
+-- direction, already proven safe). sail_participations and
+-- sail_participation_responses: reference nothing in any policy — every
+-- USING/WITH CHECK clause here reads only the row's own columns. The two
+-- places `sails` IS read (the creation trigger, the confirm RPC) are both
+-- security definer, which bypasses RLS rather than participating in it, so
+-- neither can form a policy-to-policy cycle with sails or sail_requests.

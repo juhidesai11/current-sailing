@@ -199,6 +199,65 @@
     }
   };
 
+  /* Permanent sailing history (Phase 4) ---------------------------------------
+     A sail_participations row exists once a request is accepted (created
+     server-side — see supabase/schema.sql — never by this code directly).
+     Both fetches below just read it; confirming goes through the
+     confirm_sail_participation RPC, never a direct table write. */
+
+  /* This signed-in crew member's own participation row for this sail, if one exists. */
+  const fetchMyParticipation = async (sailId, userId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return null;
+    try {
+      const { data, error } = await supa
+        .from("sail_participations")
+        .select("id, skipper_confirmed, crew_confirmed")
+        .eq("sail_id", sailId)
+        .eq("crew_user_id", userId)
+        .maybeSingle();
+      return error ? null : data;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  /* Every participation row for this sail — for the skipper's "Crew requests"
+     section, keyed by crew_user_id so each accepted request can find its own. */
+  const fetchParticipationsForSail = async (sailId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return new Map();
+    try {
+      const { data, error } = await supa
+        .from("sail_participations")
+        .select("id, crew_user_id, skipper_confirmed, crew_confirmed")
+        .eq("sail_id", sailId);
+      if (error || !data) return new Map();
+      return new Map(data.map((p) => [p.crew_user_id, p]));
+    } catch (e) {
+      return new Map();
+    }
+  };
+
+  /* Whether this sail's snapshot date/time has passed — approximate and
+     client-side only, used purely to decide which button to show. The real
+     gate is the confirm_sail_participation RPC's own server-side check
+     against the sail's actual timezone; this just avoids showing a live
+     "Confirm sail" button that would only fail when clicked. */
+  const sailTimeHasPassed = (sail) => Date.now() >= sail.date.getTime();
+
+  /* Confirm state for one participation, from one side's point of view:
+     "accepted" (nothing to do yet or no row at all), "ready" (can confirm),
+     "mine" (I've confirmed, waiting on the other side), "both" (done). */
+  const confirmStateOf = (participation, viewerIsCrew, sail) => {
+    if (!participation) return "accepted";
+    const mine = viewerIsCrew ? participation.crew_confirmed : participation.skipper_confirmed;
+    const theirs = viewerIsCrew ? participation.skipper_confirmed : participation.crew_confirmed;
+    if (mine && theirs) return "both";
+    if (mine) return "mine";
+    return sailTimeHasPassed(sail) ? "ready" : "accepted";
+  };
+
   /* Find a sail ----------------------------------------------------------- */
   const cardsEl = document.getElementById("cards");
   if (cardsEl) {
@@ -412,7 +471,7 @@
          (owner) — same profile-shaping helper Phase 2 already uses for the
          skipper, reused here since "a real person's profile" is the same
          lookup either way. */
-      let myProfile = null, myRequest = null, ownerRequests = [];
+      let myProfile = null, myRequest = null, ownerRequests = [], myParticipation = null;
       if (s.isReal && isOwner) {
         const rows = await fetchRequestsForSail(s.id);
         const cache = new Map();
@@ -421,9 +480,12 @@
           const profile = cache.get(r.requester_user_id);
           if (profile) ownerRequests.push({ ...r, profile }); // no resolvable profile — skip rather than show a placeholder identity
         }
+        const participationsByCrew = await fetchParticipationsForSail(s.id);
+        ownerRequests.forEach((r) => { r.participation = participationsByCrew.get(r.requester_user_id) || null; });
       } else if (s.isReal && session) {
         myProfile = await fetchRealSkipperProfile(session.user.id);
         if (myProfile) myRequest = await fetchMyRequestForSail(s.id, session.user.id);
+        if (myRequest && myRequest.status === "accepted") myParticipation = await fetchMyParticipation(s.id, session.user.id);
       }
 
       const p = skipperOf(s);
@@ -483,12 +545,26 @@
          live button that opens the modal. */
       const REQUEST_STATUS_LABEL = { requested: "Requested", accepted: "Accepted", declined: "Declined" };
       const canOpenRequestModal = s.isReal && !isOwner && !!myProfile && !myRequest;
+
+      /* Once accepted, the request button becomes the confirm flow instead of
+         a static "Accepted" label — same confirmStateOf() the skipper's side
+         uses below, just from the crew member's point of view. */
+      const crewConfirmActionHtml = (participation) => {
+        const state = confirmStateOf(participation, true, s);
+        if (state === "ready") return `<button class="btn btn--lg detail__request" type="button" data-confirm-open="${esc(participation.id)}" data-confirm-other="${esc(first)}">Confirm sail</button>`;
+        if (state === "mine") return `<button class="btn btn--lg detail__request" type="button" disabled>Confirmed by you · Waiting for ${esc(first)}</button>`;
+        if (state === "both") return `<button class="btn btn--lg detail__request" type="button" disabled>Sail confirmed ✓</button>`;
+        return `<button class="btn btn--lg detail__request" type="button" disabled>Accepted</button>`;
+      };
+
       const realRequestActions = !session
         ? `<a class="btn btn--lg detail__request" href="login.html">Request to crew</a>`
         : !myProfile
         ? `<a class="btn btn--lg detail__request" href="create-profile.html">Request to crew</a>`
         : myRequest
-        ? `<button class="btn btn--lg detail__request" type="button" disabled>${esc(REQUEST_STATUS_LABEL[myRequest.status])}</button>`
+        ? (myRequest.status === "accepted"
+            ? crewConfirmActionHtml(myParticipation)
+            : `<button class="btn btn--lg detail__request" type="button" disabled>${esc(REQUEST_STATUS_LABEL[myRequest.status])}</button>`)
         : `<button class="btn btn--lg detail__request" type="button" data-request>Request to crew <span aria-hidden="true">→</span></button>`;
 
       const actionsHtml = isOwner ? ownerActions : s.isReal ? realRequestActions : demoRequestActions;
@@ -497,6 +573,17 @@
          section below the main grid, since it can hold several requests.
          Reuses .pf-feedback/.fb from profile.js's feedback list (already
          designed for "a person + a short quote"), not a new component. */
+      /* The skipper's per-request confirm state, once accepted — same states
+         as crewConfirmActionHtml, mirrored from the skipper's point of view. */
+      const skipperConfirmFooter = (r) => {
+        const crewFirst = r.profile.name.split(" ")[0];
+        const state = confirmStateOf(r.participation, false, s);
+        if (state === "ready") return `<button class="btn btn--ghost" type="button" data-confirm-open="${esc(r.participation.id)}" data-confirm-other="${esc(crewFirst)}">Confirm sail</button>`;
+        if (state === "mine") return `<span>Confirmed by you · Waiting for crew</span>`;
+        if (state === "both") return `<span>Sail confirmed ✓</span>`;
+        return `<span>Accepted</span>`;
+      };
+
       const crewRequestsSection = !(s.isReal && isOwner) ? "" : `
         <section class="pf-section pf-section--last" aria-labelledby="cr-requests-heading">
           <div class="container">
@@ -513,6 +600,8 @@
                       <p class="fb__foot">
                         ${r.status === "requested"
                           ? `<span class="cr-actions"><button class="btn btn--ghost" type="button" data-decline="${esc(r.id)}">Decline</button><button class="btn" type="button" data-accept="${esc(r.id)}">Accept</button></span>`
+                          : r.status === "accepted"
+                          ? skipperConfirmFooter(r)
                           : `<span>${esc(REQUEST_STATUS_LABEL[r.status])}</span>`}
                       </p>
                     </div>
@@ -526,7 +615,7 @@
          live button to open it. Uses the requester's own real profile, never
          the demo "me" persona loop.js uses for demo sails. */
       const realModal = !canOpenRequestModal ? "" : `
-        <dialog class="modal" aria-labelledby="modal-title">
+        <dialog class="modal" aria-labelledby="modal-title" data-request-modal>
           <div class="modal__panel" data-state="form">
             <p class="label">Request to crew</p>
             <h2 class="modal__title" id="modal-title">${esc(s.title)}</h2>
@@ -556,6 +645,36 @@
             <div class="modal__actions">
               <button class="btn" type="button" data-done>Done</button>
             </div>
+          </div>
+        </dialog>`;
+
+      /* Confirm sail (real sails only): one shared modal for both the crew
+         member's own action and each of the skipper's per-request rows —
+         whichever [data-confirm-open] button was clicked fills in the
+         participation id and the other person's name before opening it. */
+      const confirmModalHtml = !s.isReal ? "" : `
+        <dialog class="modal" aria-labelledby="confirm-title" data-confirm-modal>
+          <div class="modal__panel" data-state="confirm">
+            <p class="label">Confirm sail</p>
+            <h2 class="modal__title" id="confirm-title">Did you sail together?</h2>
+            <p class="modal__lede">Confirming lets this count toward both of your CURRENT sailing history.</p>
+            <div class="modal__actions">
+              <button class="btn btn--ghost" type="button" data-confirm-close>Not yet</button>
+              <button class="btn" type="button" data-confirm-step1 autofocus>Confirm</button>
+            </div>
+          </div>
+          <div class="modal__panel" data-state="again" hidden>
+            <h2 class="modal__title" data-confirm-again-title>Would you sail together again?</h2>
+            <p class="small field-error" data-confirm-error hidden></p>
+            <div class="modal__actions">
+              <button class="btn btn--ghost" type="button" data-again="not_sure">Not sure</button>
+              <button class="btn" type="button" data-again="yes">Yes</button>
+            </div>
+          </div>
+          <div class="modal__panel" data-state="done" hidden>
+            <h2 class="modal__title">Sail confirmed ✓</h2>
+            <p class="modal__lede">Thanks — this is now part of your CURRENT sailing history.</p>
+            <div class="modal__actions"><button class="btn" type="button" data-confirm-done>Done</button></div>
           </div>
         </dialog>`;
 
@@ -602,6 +721,8 @@
 
         ${crewRequestsSection}
 
+        ${confirmModalHtml}
+
         ${s.isReal ? realModal : `
         <dialog class="modal" aria-labelledby="modal-title">
           <div class="modal__panel" data-state="form">
@@ -635,6 +756,68 @@
             </div>
           </div>
         </dialog>`}`;
+
+      /* Confirm sail wiring (real sails only) — shared by both the skipper's
+         per-request rows and the crew member's own action button, since
+         there's exactly one confirm modal on the page regardless of role.
+         The only write here is the confirm_sail_participation RPC: identity
+         comes from auth.uid() server-side, confirmed_at is server-authored,
+         and the browser never sends anything but participation_id + the
+         chosen would_sail_again value. */
+      if (s.isReal) {
+        const confirmModal = detailEl.querySelector("[data-confirm-modal]");
+        if (confirmModal) {
+          let activeParticipationId = null;
+          const showConfirmState = (name) =>
+            confirmModal.querySelectorAll("[data-state]").forEach((el) => { el.hidden = el.dataset.state !== name; });
+
+          detailEl.querySelectorAll("[data-confirm-open]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              activeParticipationId = btn.dataset.confirmOpen;
+              const otherName = btn.dataset.confirmOther || "them";
+              confirmModal.querySelector("[data-confirm-again-title]").textContent = `Would you sail with ${otherName} again?`;
+              const errorEl = confirmModal.querySelector("[data-confirm-error]");
+              if (errorEl) errorEl.hidden = true;
+              showConfirmState("confirm");
+              confirmModal.showModal();
+            });
+          });
+
+          confirmModal.querySelector("[data-confirm-close]")?.addEventListener("click", () => confirmModal.close());
+          confirmModal.addEventListener("click", (e) => { if (e.target === confirmModal) confirmModal.close(); });
+          confirmModal.querySelector("[data-confirm-step1]")?.addEventListener("click", () => showConfirmState("again"));
+
+          confirmModal.querySelectorAll("[data-again]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const answer = btn.dataset.again;
+              const errorEl = confirmModal.querySelector("[data-confirm-error]");
+              errorEl.hidden = true;
+              const buttons = confirmModal.querySelectorAll("[data-again]");
+              buttons.forEach((b) => (b.disabled = true));
+
+              const { error } = await window.CURRENT_SUPABASE.rpc("confirm_sail_participation", {
+                p_participation_id: activeParticipationId,
+                p_would_sail_again: answer,
+              });
+
+              buttons.forEach((b) => (b.disabled = false));
+              if (error) {
+                console.error("Confirm sail failed:", error);
+                const msg = error.message || "";
+                if (/already confirmed/i.test(msg)) errorEl.textContent = "You've already confirmed this sail.";
+                else if (/has not happened yet/i.test(msg)) errorEl.textContent = "This sail hasn't happened yet.";
+                else if (/not authorized/i.test(msg) || error.code === "42501") errorEl.textContent = "You don't have permission to do that.";
+                else errorEl.textContent = "Could not save your confirmation. Please try again.";
+                errorEl.hidden = false;
+                return;
+              }
+              showConfirmState("done");
+            });
+          });
+
+          confirmModal.querySelector("[data-confirm-done]")?.addEventListener("click", () => location.reload());
+        }
+      }
 
       if (isOwner) {
         /* Close sail: RLS (auth.uid() = skipper_user_id), not this check, is what
@@ -681,7 +864,7 @@
          instead (built into actionsHtml above), nothing to wire here. */
       if (s.isReal) {
         if (canOpenRequestModal) {
-          const modal = detailEl.querySelector(".modal");
+          const modal = detailEl.querySelector("[data-request-modal]");
           const reqBtn = detailEl.querySelector("[data-request]");
           const sendBtn = modal.querySelector("[data-send]");
           const requestError = modal.querySelector("[data-request-error]");

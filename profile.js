@@ -54,15 +54,19 @@
 
   /* Profile dashboard (real, signed-in owner only) --------------------------
      Every real crew request this user has made, sail details embedded via
-     the FK. The "requesters can read sails they've requested" policy is what
-     keeps that embed populated even after the skipper closes the sail. */
+     the FK. Note: there is currently no policy letting a requester read a
+     sail once the skipper closes it (an earlier attempt at one caused RLS
+     recursion with sail_requests and was removed) — so this embed can come
+     back null for a requested/declined row against a since-closed sail. An
+     accepted row is unaffected once confirmed, since sail_participations
+     keeps its own permanent snapshot independent of `sails` entirely. */
   const fetchMyRequests = async (userId) => {
     const supa = window.CURRENT_SUPABASE;
     if (!supa) return [];
     try {
       const { data, error } = await supa
         .from("sail_requests")
-        .select("id, status, created_at, sails ( id, title, sail_date, location, status )")
+        .select("id, status, created_at, sails ( id, title, sail_date, start_time, location, status )")
         .eq("requester_user_id", userId)
         .order("created_at", { ascending: false });
       if (error || !data) return [];
@@ -91,6 +95,96 @@
 
   const REQUEST_STATUS_LABEL = { requested: "Requested", accepted: "Accepted", declined: "Declined" };
   const fmtShortDate = (dateStr) => new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const fmtRecentDate = (dateStr) => fmtShortDate(dateStr).toUpperCase();
+
+  /* Permanent sailing history (Phase 4) — public for any real profile, not
+     just its owner: sail_participations' "confirmed rows are public" policy
+     is what makes this safe to run for anyone viewing anyone's real profile.
+     Calculated at read time from real confirmed rows — never a stored
+     counter, so it can never drift out of sync with what's actually true.
+     "Would sail again" is deliberately not fetched here — it's private and
+     never shown on a profile, this phase or otherwise. */
+  const fetchConfirmedHistory = async (userId) => {
+    const empty = { confirmedSails: 0, repeatConnections: 0, sailedWith: [], sailedWithMore: 0, recent: [], otherProfilesBySlug: {} };
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return empty;
+    try {
+      const { data: rows, error } = await supa
+        .from("sail_participations")
+        .select("skipper_user_id, crew_user_id, sail_title, sail_boat, sail_location, sail_date")
+        .eq("skipper_confirmed", true)
+        .eq("crew_confirmed", true)
+        .or(`skipper_user_id.eq.${userId},crew_user_id.eq.${userId}`)
+        .order("sail_date", { ascending: false });
+      if (error || !rows || !rows.length) return empty;
+
+      const otherIdOf = (r) => (r.skipper_user_id === userId ? r.crew_user_id : r.skipper_user_id);
+      const otherIds = [...new Set(rows.map(otherIdOf))];
+
+      const { data: otherProfiles } = await supa
+        .from("profiles")
+        .select("user_id, slug, name, photo_url")
+        .in("user_id", otherIds);
+      const slugById = {};
+      const otherProfilesBySlug = {};
+      (otherProfiles || []).forEach((pr) => {
+        slugById[pr.user_id] = pr.slug;
+        otherProfilesBySlug[pr.slug] = { slug: pr.slug, name: pr.name, photo: pr.photo_url || "" };
+      });
+
+      const sailsByOther = new Map();
+      rows.forEach((r) => {
+        const slug = slugById[otherIdOf(r)];
+        if (slug) sailsByOther.set(slug, (sailsByOther.get(slug) || 0) + 1);
+      });
+      const sailedWith = [...sailsByOther.entries()]
+        .map(([slug, count]) => ({ slug, sails: count }))
+        .sort((a, b) => b.sails - a.sails);
+      const repeatConnections = sailedWith.filter((w) => w.sails > 1).length;
+
+      const recent = rows.slice(0, 4).map((r) => ({
+        date: fmtRecentDate(r.sail_date),
+        title: r.sail_title,
+        boat: r.sail_boat,
+        place: r.sail_location,
+        other: slugById[otherIdOf(r)] || "",
+      }));
+
+      return { confirmedSails: rows.length, repeatConnections, sailedWith, sailedWithMore: 0, recent, otherProfilesBySlug };
+    } catch (e) {
+      return empty;
+    }
+  };
+
+  /* This signed-in user's participation for each of their OWN accepted
+     requests, keyed by sail_id — used only to upgrade the "My requests" row
+     status below (Accepted → Confirm sail → Waiting → Confirmed sail ✓). */
+  const fetchMyParticipationsBySail = async (userId) => {
+    const supa = window.CURRENT_SUPABASE;
+    if (!supa) return new Map();
+    try {
+      const { data, error } = await supa
+        .from("sail_participations")
+        .select("id, sail_id, skipper_confirmed, crew_confirmed")
+        .eq("crew_user_id", userId);
+      if (error || !data) return new Map();
+      return new Map(data.map((p) => [p.sail_id, p]));
+    } catch (e) {
+      return new Map();
+    }
+  };
+
+  /* "Accepted" / "Confirm sail" (link) / "Waiting for confirmation" /
+     "Confirmed sail ✓" for one My-requests row. The sail-happened check here
+     is the same client-side approximation sails.js uses — purely to decide
+     what to show; the real gate is the confirm_sail_participation RPC. */
+  const myRequestConfirmState = (participation, sailDate, sailStartTime) => {
+    const happened = new Date(`${sailDate}T${sailStartTime || "00:00"}`) <= new Date();
+    if (!participation) return happened ? "ready" : "accepted";
+    if (participation.crew_confirmed && participation.skipper_confirmed) return "both";
+    if (participation.crew_confirmed) return "mine";
+    return happened ? "ready" : "accepted";
+  };
 
   (async () => {
     const session = window.CURRENT_AUTH ? await window.CURRENT_AUTH.getSession() : null;
@@ -113,9 +207,20 @@
 
     let p = await fetchRealProfile(slug);
     let isMine = false;
+    let realOtherProfilesBySlug = {};
 
     if (p) {
       isMine = !!session && session.user.id === p.userId;
+      /* Confirmed sailing history is public — fetched for ANY real profile,
+         not just isMine, since anyone (including a logged-out visitor) may
+         be viewing it. */
+      const history = await fetchConfirmedHistory(p.userId);
+      p.confirmedSails = history.confirmedSails;
+      p.repeatConnections = history.repeatConnections;
+      p.sailedWith = history.sailedWith;
+      p.sailedWithMore = history.sailedWithMore;
+      p.recent = history.recent;
+      realOtherProfilesBySlug = history.otherProfilesBySlug;
     } else {
       p = data.profiles[slug];
       /* Your own profile is the one the crew-request loop (loop.js) can change:
@@ -140,12 +245,18 @@
        true for a logged-out visitor — so this can never show on a demo
        profile or on someone else's real one. */
     const showDashboard = isMine && !!p.userId;
-    const [myRequests, mySails] = showDashboard
-      ? await Promise.all([fetchMyRequests(p.userId), fetchMySails(p.userId)])
-      : [[], []];
+    let myRequests = [], mySails = [], myParticipationsBySail = new Map();
+    if (showDashboard) {
+      [myRequests, mySails, myParticipationsBySail] = await Promise.all([
+        fetchMyRequests(p.userId), fetchMySails(p.userId), fetchMyParticipationsBySail(p.userId),
+      ]);
+    }
 
   const first = p.name.split(" ")[0];
-  const person = (s) => data.profiles[s];
+  /* A confirmed connection's "other person" is a real profile (resolved
+     above, keyed by slug), not necessarily one of data.js's sample sailors —
+     check that first, falling back to the demo roster for demo profiles. */
+  const person = (s) => realOtherProfilesBySlug[s] || data.profiles[s];
   const profileHref = (s) => `profile.html?p=${esc(s)}`;
   const src = {
     verified: `<span class="src src--verified">${verifiedTick("Verified")}Verified</span>`,
@@ -247,6 +358,7 @@
     </section>
 
     ${hasHistory ? `
+    ${!p.sailedWith.length ? "" : `
     <!-- WHO HAVE THEY ACTUALLY SAILED WITH? -->
     <section class="pf-section" aria-labelledby="pf-with">
       <div class="container">
@@ -265,8 +377,9 @@
           ${p.sailedWithMore ? `<li><span class="pf-mate pf-mate--more"><span class="pf-more">+${p.sailedWithMore}</span><span class="pf-mate__name">and ${p.sailedWithMore} more</span></span></li>` : ""}
         </ul>
       </div>
-    </section>
+    </section>`}
 
+    ${!p.feedback.length ? "" : `
     <!-- WHAT WAS IT LIKE TO SAIL WITH THEM? -->
     <section class="pf-section" aria-labelledby="pf-fb">
       <div class="container">
@@ -291,7 +404,7 @@
           }).join("")}
         </div>
       </div>
-    </section>
+    </section>`}
 
     <!-- WHAT HAVE THEY DONE RECENTLY? -->
     <section class="pf-section${showDashboard ? "" : " pf-section--last"}" aria-labelledby="pf-recent">
@@ -302,7 +415,9 @@
             <li>
               <span class="pf-recent__date">${esc(r.date)}</span>
               <strong>${esc(r.title)}</strong>
-              <span class="pf-recent__meta"><span>${esc(r.boat)}</span><span>${esc(r.place)}</span><span class="pf-muted">${esc(r.role)}</span></span>
+              <span class="pf-recent__meta"><span>${esc(r.boat)}</span><span>${esc(r.place)}</span>${
+                r.other ? `<span class="pf-muted">with ${esc(person(r.other)?.name || "")}</span>` : r.role ? `<span class="pf-muted">${esc(r.role)}</span>` : ""
+              }</span>
             </li>`).join("")}
         </ul>
       </div>
@@ -328,14 +443,24 @@
         <div class="pf-head"><h2 id="pf-my-requests">My requests</h2></div>
         ${myRequests.length ? `
           <div class="pf-creds">
-            ${myRequests.map((r) => `
+            ${myRequests.map((r) => {
+              const badge = (() => {
+                if (r.status !== "accepted") return `<span class="src">${esc(REQUEST_STATUS_LABEL[r.status])}</span>`;
+                const state = myRequestConfirmState(myParticipationsBySail.get(r.sails.id), r.sails.sail_date, r.sails.start_time);
+                if (state === "ready") return `<a class="src src--community" href="sail.html?id=${esc(r.sails.id)}">Confirm sail</a>`;
+                if (state === "mine") return `<span class="src">Waiting for confirmation</span>`;
+                if (state === "both") return `<span class="src src--community">Confirmed sail ✓</span>`;
+                return `<span class="src src--community">Accepted</span>`;
+              })();
+              return `
               <div class="pf-cred">
                 <div>
                   <p class="pf-cred__issuer"><a href="sail.html?id=${esc(r.sails.id)}">${esc(r.sails.title)}</a></p>
                   <p class="pf-muted">${esc(fmtShortDate(r.sails.sail_date))} · ${esc(r.sails.location)}${r.sails.status === "closed" ? " · Closed" : ""}</p>
                 </div>
-                <span class="src${r.status === "accepted" ? " src--community" : ""}">${esc(REQUEST_STATUS_LABEL[r.status])}</span>
-              </div>`).join("")}
+                ${badge}
+              </div>`;
+            }).join("")}
           </div>` : `
           <div class="pf-empty">
             <p>You haven't requested to crew on any sails yet.</p>
