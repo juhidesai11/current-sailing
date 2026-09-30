@@ -765,3 +765,74 @@ on conflict (sail_id, crew_user_id) do nothing;
 -- places `sails` IS read (the creation trigger, the confirm RPC) are both
 -- security definer, which bypasses RLS rather than participating in it, so
 -- neither can form a policy-to-policy cycle with sails or sail_requests.
+
+
+-- =============================================================================
+-- 9. PHOTOS (Phase 5)
+-- Two public Storage buckets — public because a profile's / open sail's own
+-- database row is already intentionally public in this app, so gating the
+-- image file behind a signed URL would add complexity without any real
+-- privacy gain. Every upload is client-side resized and re-encoded to JPEG
+-- before it ever reaches Storage, so bucket-level MIME/size limits below are
+-- a real server-side backstop, not just a client-side nicety.
+-- =============================================================================
+
+alter table public.sails add column if not exists photo_url text;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('profile-photos', 'profile-photos', true, 3145728, array['image/jpeg'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('sail-photos', 'sail-photos', true, 4194304, array['image/jpeg'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+-- profile-photos/<user_id>/profile.jpg — fixed filename, so "replace" is just
+-- "upload again" (upsert) with no orphaned old-extension file left behind.
+-- Ownership only ever depends on auth.uid(), never on a profiles row
+-- existing, so this never has the "row doesn't exist yet" problem sail
+-- photos do (see below). The policy matches the object's full `name` against
+-- that exact path (not just its folder) so a client bypassing the frontend
+-- cannot write any other filename inside a user's own folder.
+drop policy if exists "profile photos are publicly readable" on storage.objects;
+create policy "profile photos are publicly readable"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'profile-photos');
+
+drop policy if exists "users manage their own profile photo" on storage.objects;
+create policy "users manage their own profile photo"
+  on storage.objects for all
+  to authenticated
+  using (bucket_id = 'profile-photos' and name = auth.uid()::text || '/profile.jpg')
+  with check (bucket_id = 'profile-photos' and name = auth.uid()::text || '/profile.jpg');
+
+-- sail-photos/<sail_id>/cover.jpg — ownership is verified by joining back to
+-- sails, which means a brand-new sail's photo can only ever be uploaded
+-- AFTER that sail row exists (enforced client-side in post-sail.js: insert
+-- the sail first, then upload using the real id). One direction only
+-- (sail-photos -> sails); sails' own policies never reference storage.objects,
+-- so this can't form an RLS recursion cycle, same shape as sail_requests -> sails.
+-- As with profile photos, `name` is matched against the exact expected path
+-- (sail id + '/cover.jpg'), not just its folder, so a client bypassing the
+-- frontend cannot write any other filename inside a sail's own folder.
+drop policy if exists "sail photos are publicly readable" on storage.objects;
+create policy "sail photos are publicly readable"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'sail-photos');
+
+drop policy if exists "skippers manage their own sail photo" on storage.objects;
+create policy "skippers manage their own sail photo"
+  on storage.objects for all
+  to authenticated
+  using (bucket_id = 'sail-photos' and exists (
+    select 1 from public.sails
+    where name = sails.id::text || '/cover.jpg'
+      and sails.skipper_user_id = auth.uid()
+  ))
+  with check (bucket_id = 'sail-photos' and exists (
+    select 1 from public.sails
+    where name = sails.id::text || '/cover.jpg'
+      and sails.skipper_user_id = auth.uid()
+  ));

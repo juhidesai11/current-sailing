@@ -54,28 +54,6 @@
     return `${base}-${n}`;
   };
 
-  /* Downscale an uploaded photo client-side so it stores reasonably as a data URL. */
-  const readPhoto = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = reject;
-      reader.onload = () => {
-        const img = new Image();
-        img.onerror = reject;
-        img.onload = () => {
-          const max = 640;
-          const scale = Math.min(1, max / Math.max(img.width, img.height));
-          const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-          const canvas = document.createElement("canvas");
-          canvas.width = w; canvas.height = h;
-          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL("image/jpeg", 0.85));
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-
   /* Read the fields visible on the step being LEFT (either direction) into state. */
   const syncStep = () => {
     if (step === 1) {
@@ -97,11 +75,13 @@
         <button type="button" class="onboard__photo" data-photo-pick aria-label="Add a profile photo">
           ${state.photo ? `<img src="${state.photo}" alt="">` : `<span aria-hidden="true">${esc((state.name || "?").slice(0, 1).toUpperCase())}</span>`}
         </button>
-        <div>
+        <div class="onboard__photo-actions">
           <button type="button" class="onboard__photo-action" data-photo-pick>${state.photo ? "Change photo" : "Add photo"}</button>
+          ${state.photo ? `<button type="button" class="onboard__photo-action" data-photo-remove>Remove photo</button>` : ""}
           <input type="file" accept="image/*" data-photo-input hidden>
         </div>
       </div>
+      <p class="small field-error" data-photo-error hidden></p>
       <label class="field"><span>Full name</span><input type="text" data-f-name value="${esc(state.name)}" placeholder="Your name" autocomplete="name"></label>
       <label class="field"><span>Home sailing area</span><input type="text" data-f-area value="${esc(state.sailingArea)}" placeholder="e.g. San Francisco Bay Area"></label>
       <label class="field">
@@ -355,13 +335,33 @@
     root.querySelector("[data-finish]")?.addEventListener("click", finish);
     root.querySelector("[data-review-edit]")?.addEventListener("click", () => { step = 1; paint(); });
 
-    /* Step 1: photo + live bio counter */
+    /* Step 1: photo + live bio counter. Picking or removing a photo only ever
+       touches local state — nothing is uploaded or deleted from Storage until
+       finish() actually saves the profile (see finish() below). */
     const photoInput = root.querySelector("[data-photo-input]");
+    const setPhotoError = (msg) => {
+      const el = root.querySelector("[data-photo-error]");
+      if (el) { el.textContent = msg; el.hidden = !msg; }
+    };
     root.querySelectorAll("[data-photo-pick]").forEach((b) => b.addEventListener("click", () => photoInput?.click()));
     photoInput?.addEventListener("change", async () => {
       const file = photoInput.files[0];
       if (!file) return;
-      try { state.photo = await readPhoto(file); } catch (e) { /* ignore unreadable file */ }
+      setPhotoError("");
+      try {
+        const blob = await window.CURRENT_PHOTO.pickAndResize(file, 1000);
+        state.photo = URL.createObjectURL(blob);
+        state.photoBlob = blob;
+        state.photoRemoved = false;
+        paint();
+      } catch (e) {
+        setPhotoError(e.message || "Could not use that photo.");
+      }
+    });
+    root.querySelector("[data-photo-remove]")?.addEventListener("click", () => {
+      state.photo = "";
+      state.photoBlob = null;
+      state.photoRemoved = !!state.savedPhotoUrl;
       paint();
     });
     root.querySelector("[data-f-bio]")?.addEventListener("input", (e) => {
@@ -418,10 +418,29 @@
       const takenSlugs = Object.keys(data.profiles).filter((s) => s !== state.slug);
       let slug = state.slug || uniqueSlug(slugify(state.name || "sailor"), takenSlugs);
 
+      /* Resolve the photo to save. Default: unchanged. A newly picked photo is
+         uploaded now (this is the first point a Storage write is allowed — see
+         photo-upload.js); a removal is applied now too. A failed upload never
+         blocks saving the rest of the profile — it just keeps the old photo
+         and surfaces a warning after the fact. */
+      let photoUrl = state.savedPhotoUrl || null;
+      let photoWarning = "";
+      if (state.photoBlob) {
+        const { url, error } = await window.CURRENT_PHOTO.uploadPhoto("profile-photos", `${session.user.id}/profile.jpg`, state.photoBlob);
+        if (error) {
+          console.error("profile photo upload failed", error);
+          photoWarning = "Your profile was saved, but the photo couldn't be uploaded.";
+        } else {
+          photoUrl = url;
+        }
+      } else if (state.photoRemoved) {
+        photoUrl = null;
+      }
+
       const basePayload = {
         user_id: session.user.id,
         name: state.name || "New sailor",
-        photo_url: state.photo || null,
+        photo_url: photoUrl,
         home_sailing_area: state.sailingArea || null,
         bio: state.bio || null,
         sailing_since: state.sailingSince ? Number(state.sailingSince) : null,
@@ -466,7 +485,21 @@
       const failed = results.find((r) => r.error);
       if (failed) throw failed.error;
 
-      location.href = `profile.html?p=${encodeURIComponent(row.slug)}`;
+      /* Only delete the old Storage object once the database no longer
+         references it — a removal that was never actually saved must never
+         have deleted the file (see photo-upload.js). Best-effort: a failure
+         here just leaves a harmless orphaned object. */
+      if (!photoWarning && state.photoRemoved && state.savedPhotoUrl) {
+        window.CURRENT_PHOTO.deletePhoto("profile-photos", `${session.user.id}/profile.jpg`).catch(() => {});
+      }
+
+      const dest = `profile.html?p=${encodeURIComponent(row.slug)}`;
+      if (photoWarning) {
+        setError(photoWarning);
+        setTimeout(() => { location.href = dest; }, 1800);
+      } else {
+        location.href = dest;
+      }
     } catch (err) {
       setError("Something went wrong saving your profile. Please try again.");
       if (finishBtn) finishBtn.disabled = false;
@@ -495,6 +528,7 @@
     state = row
       ? {
           slug: row.slug, name: row.name || "", photo: row.photo_url || "",
+          savedPhotoUrl: row.photo_url || "", photoBlob: null, photoRemoved: false,
           sailingArea: row.home_sailing_area || "", bio: row.bio || "",
           types: row.profile_sailing_types.map((t) => t.type),
           roles: row.profile_roles.map((r) => r.role),
@@ -502,7 +536,10 @@
           boats: row.profile_boats.map((b) => ({ name: b.name, experience: b.experience })),
           credentials: row.profile_credentials.map((c) => ({ issuer: c.issuer, name: c.name, year: c.year, detail: c.detail || "" })),
         }
-      : { slug: "", name: "", photo: "", sailingArea: "", bio: "", types: [], roles: [], sailingSince: "", boats: [], credentials: [] };
+      : {
+          slug: "", name: "", photo: "", savedPhotoUrl: "", photoBlob: null, photoRemoved: false,
+          sailingArea: "", bio: "", types: [], roles: [], sailingSince: "", boats: [], credentials: [],
+        };
 
     paint();
   }

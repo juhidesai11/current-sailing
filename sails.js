@@ -113,7 +113,7 @@
     about: row.description || "",
     meet: row.location,
     bring: "Not specified",
-    photo: "", alt: row.title, ph: "#5d6a7a", pos: "50% 50%", posDetail: "50% 50%",
+    photo: row.photo_url || "", alt: row.title, ph: "#5d6a7a", pos: "50% 50%", posDetail: "50% 50%",
   });
 
   /* Every OPEN real sail, each with its skipper profile already resolved. A

@@ -24,6 +24,7 @@
     title: "", type: TYPE_OPTIONS[0], boat: "", location: "",
     sailDate: "", startTime: "", duration: "", level: "", crewNeeded: "",
     roles: [], description: "", notes: "",
+    photo: "", photoBlob: null, photoRemoved: false, savedPhotoUrl: "",
   };
 
   const val = (sel) => (root.querySelector(sel)?.value || "").trim();
@@ -67,6 +68,23 @@
             <p class="onboard__lede">${sailId ? "Update the details below." : "Share a real sailing opportunity with other sailors."}</p>
             <div class="onboard__fields">
               <label class="field"><span>Sail title</span><input type="text" data-f-title value="${esc(state.title)}" placeholder="e.g. Friday Night Race"></label>
+
+              <div class="field">
+                <span>Cover photo (optional)</span>
+                <div class="post-sail-photo photo__frame">
+                  <div class="photo__media">
+                    ${state.photo
+                      ? `<img src="${state.photo}" alt="">`
+                      : `<div class="photo__ph" aria-hidden="true"><span>Photo</span><span>Not added yet</span></div>`}
+                  </div>
+                </div>
+                <div class="post-sail-photo__actions">
+                  <button type="button" class="onboard__photo-action" data-photo-pick>${state.photo ? "Change photo" : "Add photo"}</button>
+                  ${state.photo ? `<button type="button" class="onboard__photo-action" data-photo-remove>Remove photo</button>` : ""}
+                  <input type="file" accept="image/*" data-photo-input hidden>
+                </div>
+                <p class="small field-error" data-photo-error hidden></p>
+              </div>
 
               <label class="field"><span>Sail type</span>
                 <select data-f-type>${TYPE_OPTIONS.map((t) => `<option ${t === state.type ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>
@@ -134,11 +152,53 @@
     root.querySelectorAll("[data-role-remove]").forEach((b) =>
       b.addEventListener("click", () => { syncFields(); state.roles = state.roles.filter((r) => r !== b.dataset.roleRemove); paint(); }));
     root.querySelector("[data-submit]")?.addEventListener("click", save);
+
+    /* Cover photo: picking or removing only ever touches local state — the
+       actual Storage write/delete happens inside save(), at the point where
+       the row's id (and RLS ownership check) actually exists. See save()'s
+       two branches below for exactly when each runs. */
+    const photoInput = root.querySelector("[data-photo-input]");
+    const setPhotoError = (msg) => {
+      const el = root.querySelector("[data-photo-error]");
+      if (el) { el.textContent = msg; el.hidden = !msg; }
+    };
+    root.querySelector("[data-photo-pick]")?.addEventListener("click", () => { syncFields(); photoInput?.click(); });
+    photoInput?.addEventListener("change", async () => {
+      const file = photoInput.files[0];
+      if (!file) return;
+      syncFields();
+      setPhotoError("");
+      try {
+        const blob = await window.CURRENT_PHOTO.pickAndResize(file, 1600);
+        state.photo = URL.createObjectURL(blob);
+        state.photoBlob = blob;
+        state.photoRemoved = false;
+        paint();
+      } catch (e) {
+        setPhotoError(e.message || "Could not use that photo.");
+      }
+    });
+    root.querySelector("[data-photo-remove]")?.addEventListener("click", () => {
+      syncFields();
+      state.photo = "";
+      state.photoBlob = null;
+      state.photoRemoved = !!state.savedPhotoUrl;
+      paint();
+    });
   };
 
   /* Save: insert a new sail, or update this user's existing one (edit mode).
      skipper_user_id is always the live session's own id — never taken from
-     any field on this form, so the browser can never post as someone else. */
+     any field on this form, so the browser can never post as someone else.
+
+     Cover photo lifecycle is split across two distinct branches because the
+     sail-photos Storage policy checks ownership by looking up the sail row by
+     id — for a brand-new sail that row doesn't exist yet at the moment a
+     photo is picked, so it must be inserted first and the photo attached
+     after, using the id the insert returns. An edit's sail row already
+     exists, so its photo can be resolved and saved in the same request as
+     everything else. Either way, a failed upload never blocks or deletes the
+     sail itself — it only fails the photo. */
   async function save() {
     syncFields();
     setError("");
@@ -172,11 +232,50 @@
     };
 
     try {
-      const query = sailId
-        ? supa.from("sails").update(payload).eq("id", sailId).select("id").single()
-        : supa.from("sails").insert(payload).select("id").single();
-      const { data: row, error } = await query;
+      if (sailId) {
+        /* EDIT: the row already exists, so ownership checks for the photo
+           pass fine — resolve everything up front and save in one call. */
+        let photoUrl = state.savedPhotoUrl || null;
+        let photoWarning = "";
+        if (state.photoBlob) {
+          const { url, error: uploadError } = await window.CURRENT_PHOTO.uploadPhoto("sail-photos", `${sailId}/cover.jpg`, state.photoBlob);
+          if (uploadError) {
+            console.error("Post a sail: cover photo upload failed:", uploadError);
+            photoWarning = "Your sail was saved, but the cover photo couldn't be uploaded.";
+          } else {
+            photoUrl = url;
+          }
+        } else if (state.photoRemoved) {
+          photoUrl = null;
+        }
 
+        const { error } = await supa.from("sails").update({ ...payload, photo_url: photoUrl }).eq("id", sailId);
+        if (error) {
+          console.error("Post a sail: save failed:", error);
+          if (error.code === "42501" || /row-level security|permission denied/i.test(error.message || "")) {
+            setError("You don't have permission to save this sail.");
+          } else {
+            setError("Could not save your sail. Please try again.");
+          }
+          if (btn) btn.disabled = false;
+          return;
+        }
+
+        if (!photoWarning && state.photoRemoved && state.savedPhotoUrl) {
+          window.CURRENT_PHOTO.deletePhoto("sail-photos", `${sailId}/cover.jpg`).catch(() => {});
+        }
+
+        if (photoWarning) {
+          setError(photoWarning);
+          setTimeout(() => { location.href = `sail.html?id=${encodeURIComponent(sailId)}`; }, 1800);
+        } else {
+          location.href = `sail.html?id=${encodeURIComponent(sailId)}`;
+        }
+        return;
+      }
+
+      /* CREATE: insert first so a real id exists, then attach the photo. */
+      const { data: row, error } = await supa.from("sails").insert({ ...payload, photo_url: null }).select("id").single();
       if (error) {
         console.error("Post a sail: save failed:", error);
         if (error.code === "42501" || /row-level security|permission denied/i.test(error.message || "")) {
@@ -186,6 +285,24 @@
         }
         if (btn) btn.disabled = false;
         return;
+      }
+      sailId = row.id; // a retry after a photo failure now takes the EDIT branch above
+
+      if (state.photoBlob) {
+        const { url, error: uploadError } = await window.CURRENT_PHOTO.uploadPhoto("sail-photos", `${row.id}/cover.jpg`, state.photoBlob);
+        if (uploadError) {
+          console.error("Post a sail: cover photo upload failed:", uploadError);
+          setError("Your sail was posted, but the cover photo couldn't be uploaded. Click Post sail again to retry, or leave this page — your sail is saved without a photo.");
+          if (btn) btn.disabled = false;
+          return;
+        }
+        const { error: attachError } = await supa.from("sails").update({ photo_url: url }).eq("id", row.id);
+        if (attachError) {
+          console.error("Post a sail: cover photo attach failed:", attachError);
+          setError("Your sail was posted, but the cover photo couldn't be saved. Click Post sail again to retry, or leave this page — your sail is saved without a photo.");
+          if (btn) btn.disabled = false;
+          return;
+        }
       }
 
       location.href = `sail.html?id=${encodeURIComponent(row.id)}`;
@@ -223,6 +340,7 @@
         duration: row.duration || "", level: row.experience_level || "",
         crewNeeded: row.crew_needed || "", roles: [...(row.roles_needed || [])],
         description: row.description || "", notes: row.notes || "",
+        photo: row.photo_url || "", photoBlob: null, photoRemoved: false, savedPhotoUrl: row.photo_url || "",
       };
     }
 
